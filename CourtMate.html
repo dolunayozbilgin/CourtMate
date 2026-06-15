@@ -1,0 +1,2773 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CourtMate — Tenis Eşleşme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Spectral:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #07080b;
+    background-image: radial-gradient(120% 90% at 50% -10%, #11141c 0%, #07080b 60%);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; overflow: hidden;
+    font-family: 'Archivo', system-ui, sans-serif;
+  }
+  /* ── Desktop: telefon çerçevesi ── */
+  #stage { transform-origin: center center; }
+  #device {
+    width: 402px; height: 874px; border-radius: 52px; overflow: hidden; position: relative;
+    background: #000; box-shadow: 0 50px 100px rgba(0,0,0,.55), 0 0 0 11px #0a0a0c, 0 0 0 12px #26262b;
+  }
+  .dev-island { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); width: 126px; height: 36px; border-radius: 24px; background: #000; z-index: 60; }
+  .dev-status { position: absolute; top: 0; left: 0; right: 0; height: 54px; z-index: 55; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; pointer-events: none; }
+  .dev-time { font-family: -apple-system, system-ui; font-weight: 600; font-size: 16px; color: #fff; padding-top: 4px; }
+  .dev-icons { display: flex; align-items: center; gap: 7px; padding-top: 4px; }
+  #root { position: absolute; inset: 0; }
+  .dev-home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 139px; height: 5px; border-radius: 100px; background: rgba(255,255,255,.5); z-index: 70; pointer-events: none; }
+
+  /* ── Mobil: çerçeve yok, direkt full-screen ── */
+  @media (max-width: 500px) {
+    html, body { height: 100%; overflow: hidden; background: #0d1117; }
+    body { display: block; align-items: unset; justify-content: unset; }
+    #stage { position: fixed; inset: 0; transform: none !important; }
+    #device {
+      width: 100%; height: 100%;
+      border-radius: 0; overflow: hidden;
+      box-shadow: none;
+      background: #0d1117;
+    }
+    .dev-island, .dev-status, .dev-home { display: none; }
+    #root { position: fixed; inset: 0; overflow: hidden; }
+  }
+
+  /* ════════════════ THEME TOKENS ════════════════ */
+  .cm-root {
+    --accent: #dcfc32;
+    --accent-ink: #0d1117;
+    --bg: #0d1117;
+    --bg2: #11161f;
+    --card: #161c28;
+    --card2: #1c2433;
+    --text: #f4f7ef;
+    --muted: rgba(244,247,239,.56);
+    --faint: rgba(244,247,239,.34);
+    --line: rgba(255,255,255,.09);
+    --nope: #ff5050;
+    --radius: 26px;
+    --display: 'Archivo Black', sans-serif;
+    --display-tr: -0.01em;
+    --display-case: uppercase;
+    --mono: 'JetBrains Mono', monospace;
+    height: 100%; width: 100%;
+    /* Mobilde safe-area (notch/home bar) için */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    background: var(--bg);
+    color: var(--text);
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* subtle court-grid backdrop */
+  .cm-root::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%);
+            mask-image: radial-gradient(120% 80% at 50% 0%, #000 30%, transparent 75%);
+    opacity: .5;
+  }
+
+  .cm-root[data-theme="premium"] {
+    --accent: #c9b26b;
+    --accent-ink: #14160f;
+    --bg: #14160f;
+    --bg2: #181b12;
+    --card: #1d2016;
+    --card2: #24281b;
+    --text: #ece9dc;
+    --muted: rgba(236,233,220,.55);
+    --faint: rgba(236,233,220,.32);
+    --line: rgba(236,233,220,.08);
+    --nope: #d98873;
+    --radius: 18px;
+    --display: 'Spectral', serif;
+    --display-tr: 0;
+    --display-case: none;
+  }
+  .cm-root[data-theme="premium"]::before { opacity: .28; }
+  .cm-root[data-mate="off"] .cm-mate { display: none; }
+
+  /* ════════════════ TOP BAR ════════════════ */
+  .cm-app, .cm-gate { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; }
+  .cm-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 56px 20px 12px; flex-shrink: 0;
+  }
+  .cm-brand { display: flex; align-items: center; gap: 8px; }
+  .cm-brand-mark { color: var(--accent); font-size: 18px; transform: translateY(-1px); }
+  .cm-brand-name { font-family: var(--mono); font-weight: 500; font-size: 15px; letter-spacing: .14em; color: var(--text); }
+  .cm-brand-name b { color: var(--accent); font-weight: 700; }
+  .cm-live { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .cm-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--nope); box-shadow: 0 0 0 3px color-mix(in srgb, var(--nope) 22%, transparent); animation: cm-pulse 1.8s infinite; }
+  @keyframes cm-pulse { 50% { opacity: .35; } }
+
+  /* ════════════════ LEVEL FILTER ════════════════ */
+  .cm-discover { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .cm-filter { display: flex; gap: 7px; padding: 4px 20px 8px; flex-shrink: 0; }
+  .cm-filter-btn {
+    flex: 1; padding: 9px 4px; border: 1px solid var(--line); background: transparent;
+    color: var(--muted); font-family: var(--mono); font-size: 11px; font-weight: 500;
+    letter-spacing: .03em; border-radius: 11px; cursor: pointer; transition: .18s;
+  }
+  .cm-filter-btn.is-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+
+  /* ════════════════ DECK + CARD ════════════════ */
+  .cm-deck-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 4px 18px 0; }
+  .cm-deck { position: relative; flex: 1; min-height: 0; }
+  .cm-card-slot { position: absolute; inset: 0; }
+  .cm-card-slot.is-behind { transform: scale(.94) translateY(14px); opacity: .6; filter: saturate(.7); }
+  .cm-card-slot.is-front { will-change: transform; touch-action: none; user-select: none; }
+
+  .cm-card {
+    position: relative; height: 100%; display: flex; flex-direction: column;
+    background:
+      radial-gradient(130% 80% at 80% 0%, var(--card2), var(--card) 60%);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 22px 20px 18px; overflow: hidden;
+    box-shadow: 0 24px 50px rgba(0,0,0,.45);
+  }
+  .cm-card.is-expanded { overflow-y: auto; }
+  .cm-card::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent); }
+
+  .cm-avatar { border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), 0 8px 22px color-mix(in srgb, var(--accent) 18%, transparent); }
+
+  .cm-card-top { display: flex; gap: 16px; align-items: center; }
+  .cm-card-id { min-width: 0; }
+  .cm-name-row { display: flex; align-items: center; gap: 8px; }
+  .cm-name { font-family: var(--display); text-transform: var(--display-case); letter-spacing: var(--display-tr);
+    font-size: 30px; line-height: 1; margin: 0; color: var(--text); font-weight: 800; }
+  .cm-verified { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cm-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 7px; letter-spacing: .01em; white-space: nowrap; }
+  .cm-avail { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; color: var(--text); margin-top: 6px; }
+  .cm-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+  .cm-dot.is-hot { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent); }
+
+  .cm-style-row { display: flex; gap: 8px; margin-top: 16px; }
+  .cm-style-tag, .cm-level-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; padding: 6px 11px; border-radius: 8px; white-space: nowrap; }
+  .cm-style-tag { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
+  .cm-level-tag { background: var(--card2); color: var(--muted); border: 1px solid var(--line); }
+
+  .cm-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .cm-stat { background: color-mix(in srgb, var(--bg) 55%, var(--card2)); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .cm-stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--faint); }
+  .cm-stat-value { font-family: var(--display); text-transform: var(--display-case); font-size: 23px; margin-top: 6px; color: var(--text); letter-spacing: var(--display-tr); }
+  .cm-stat-value.is-accent { color: var(--accent); }
+  .cm-stars { display: flex; gap: 3px; margin-top: 9px; }
+
+  .cm-bio { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .cm-bio-label { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--faint); }
+  .cm-bio p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--text); }
+  .cm-bio-court { display: flex; align-items: center; gap: 7px; margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  .cm-card-foot { margin-top: auto; padding-top: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .cm-mate { display: flex; flex-direction: column; gap: 3px; }
+  .cm-mate-label { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--faint); white-space: nowrap; }
+  .cm-mate-val { font-family: var(--display); text-transform: var(--display-case); font-size: 22px; color: var(--accent); letter-spacing: var(--display-tr); }
+  .cm-mate-val i { font-size: 12px; color: var(--faint); font-style: normal; }
+  .cm-expand { display: flex; align-items: center; gap: 5px; background: var(--card2); border: 1px solid var(--line); color: var(--muted);
+    font-family: var(--mono); font-size: 11px; padding: 9px 13px; border-radius: 10px; cursor: pointer; }
+  .cm-expand:hover { color: var(--text); }
+
+  /* stamps */
+  .cm-stamp { position: absolute; top: 26px; font-family: var(--display); text-transform: uppercase; font-size: 34px;
+    padding: 6px 16px; border-radius: 12px; letter-spacing: .02em; z-index: 4; pointer-events: none; }
+  .cm-stamp.is-like { left: 22px; color: var(--accent); border: 4px solid var(--accent); transform: rotate(-14deg); }
+  .cm-stamp.is-nope { right: 22px; color: var(--nope); border: 4px solid var(--nope); transform: rotate(14deg); }
+
+  /* ════════════════ ACTION BUTTONS ════════════════ */
+  .cm-actions { display: flex; align-items: center; justify-content: center; gap: 18px; padding: 18px 0 14px; flex-shrink: 0; }
+  .cm-act { border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform .15s, opacity .15s; }
+  .cm-act:active { transform: scale(.9); }
+  .cm-act:disabled { opacity: .3; cursor: default; }
+  .cm-act.is-rewind { width: 50px; height: 50px; background: var(--card2); border: 1px solid var(--line); color: var(--muted); }
+  .cm-act.is-nope { width: 64px; height: 64px; background: var(--card); border: 1.5px solid var(--nope); color: var(--nope); box-shadow: 0 8px 22px color-mix(in srgb, var(--nope) 20%, transparent); }
+  .cm-act.is-like { width: 64px; height: 64px; background: var(--accent); border: none; color: var(--accent-ink); box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+  /* ════════════════ EMPTY / STUB ════════════════ */
+  .cm-empty, .cm-stub { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
+  .cm-empty-mark, .cm-stub-mark { font-family: var(--display); color: var(--accent); font-size: 24px; letter-spacing: .1em; opacity: .7; }
+  .cm-stub-mark { font-size: 40px; }
+  .cm-empty h3, .cm-stub h3 { font-family: var(--display); text-transform: var(--display-case); font-size: 26px; margin: 18px 0 8px; letter-spacing: var(--display-tr); }
+  .cm-empty p, .cm-stub p { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 260px; margin: 0 0 20px; }
+  .cm-reset { background: var(--accent); color: var(--accent-ink); border: none; font-family: var(--mono); font-weight: 700; font-size: 13px; padding: 12px 22px; border-radius: 12px; cursor: pointer; }
+
+  /* ════════════════ TAB BAR ════════════════ */
+  .cm-tabbar { display: flex; flex-shrink: 0; padding: 8px 10px 26px; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 80%, transparent); backdrop-filter: blur(10px); }
+  .cm-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; padding: 4px 0; }
+  .cm-tab-ico { position: relative; }
+  .cm-tab-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: .03em; color: var(--muted); }
+  .cm-tab.is-on .cm-tab-label { color: var(--accent); }
+  .cm-badge { position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--nope); color: #fff; font-family: var(--mono); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+  /* ════════════════ LEVEL GATE ════════════════ */
+  .cm-gate { padding: 76px 26px 30px; gap: 0; justify-content: flex-start; }
+  .cm-gate-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--accent); }
+  .cm-gate-title { font-family: var(--display); text-transform: var(--display-case); font-size: 54px; line-height: .92; margin: 16px 0 0; letter-spacing: var(--display-tr); }
+  .cm-gate-title em { color: var(--accent); font-style: normal; }
+  .cm-gate-sub { color: var(--muted); font-size: 14px; line-height: 1.5; margin: 16px 0 0; max-width: 300px; }
+  .cm-gate-list { display: flex; flex-direction: column; gap: 11px; margin: 28px 0; }
+  .cm-gate-opt { position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; text-align: left;
+    background: color-mix(in srgb, var(--lv) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--lv) 26%, var(--line));
+    border-radius: 18px; padding: 16px 16px 16px 22px; cursor: pointer; transition: .18s; }
+  .cm-gate-opt::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--lv); }
+  /* per-level tone: cool→warm with difficulty */
+  .cm-gate-list .cm-gate-opt:nth-child(1) { --lv: #34d399; }
+  .cm-gate-list .cm-gate-opt:nth-child(2) { --lv: #f5c044; }
+  .cm-gate-list .cm-gate-opt:nth-child(3) { --lv: #ff7058; }
+  .cm-gate-opt.is-sel { border-color: var(--lv); background: color-mix(in srgb, var(--lv) 17%, var(--card));
+    box-shadow: 0 0 0 1px var(--lv), 0 10px 26px color-mix(in srgb, var(--lv) 22%, transparent); }
+  .cm-gate-opt-main { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .cm-gate-opt-label { font-family: var(--display); text-transform: var(--display-case); font-size: 20px; letter-spacing: var(--display-tr); color: var(--lv); }
+  .cm-gate-opt-desc { font-size: 12px; color: var(--muted); line-height: 1.35; }
+  .cm-gate-utr { font-family: var(--mono); font-size: 10px; color: color-mix(in srgb, var(--lv) 75%, var(--muted)); white-space: nowrap; }
+  .cm-gate-check { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--lv) 40%, var(--line)); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cm-gate-check svg { opacity: 0; }
+  .cm-gate-check.is-sel { background: var(--lv); border-color: var(--lv); }
+  .cm-gate-check.is-sel svg { opacity: 1; }
+
+  /* shared CTA */
+  .cm-cta { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--accent); color: var(--accent-ink);
+    border: none; border-radius: 16px; padding: 17px; font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: .06em; cursor: pointer; transition: .15s; white-space: nowrap; }
+  .cm-cta:active { transform: scale(.98); }
+  .cm-cta:disabled { opacity: .35; cursor: default; }
+  .cm-ghost { width: 100%; background: none; border: none; color: var(--muted); font-family: var(--mono); font-size: 13px; padding: 14px; cursor: pointer; }
+  .cm-ghost:hover { color: var(--text); }
+
+  /* ════════════════ MATCH OVERLAY ════════════════ */
+  .cm-match { position: absolute; inset: 0; z-index: 40; background: color-mix(in srgb, var(--bg) 92%, #000);
+    display: flex; align-items: center; justify-content: center; padding: 30px; overflow: hidden; opacity: 1; }
+  .cm-match-glow { position: absolute; top: 20%; left: 50%; width: 320px; height: 320px; transform: translateX(-50%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--accent) 40%, transparent), transparent 70%); filter: blur(20px); }
+  .cm-match-inner { position: relative; text-align: center; display: flex; flex-direction: column; align-items: center; width: 100%; }
+  .cm-match-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .2em; color: var(--accent); }
+  .cm-match-title { font-family: var(--display); text-transform: var(--display-case); font-size: 52px; line-height: .9; margin: 12px 0 0; letter-spacing: var(--display-tr); }
+  .cm-match-title em { color: var(--accent); font-style: normal; }
+  .cm-match-avatars { display: flex; align-items: center; gap: 16px; margin: 28px 0 20px; }
+  .cm-match-av { animation: cm-pop .5s cubic-bezier(.3,1.5,.5,1) both; }
+  .cm-match-av:nth-child(3) { animation-delay: .12s; }
+  @keyframes cm-pop { from { transform: scale(.4); } to { transform: scale(1); } }
+  .cm-match-you { width: 96px; height: 96px; border-radius: 50%; background: var(--card2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+  .cm-match-you span { font-family: var(--display); text-transform: var(--display-case); font-size: 22px; color: var(--muted); }
+  .cm-match-vs { font-family: var(--display); font-size: 26px; color: var(--accent); }
+  .cm-match-line { color: var(--muted); font-size: 14px; line-height: 1.5; max-width: 280px; margin: 0 0 26px; }
+  .cm-match-line b { color: var(--text); }
+  .cm-match-actions { width: 100%; display: flex; flex-direction: column; gap: 4px; }
+
+  .cm-sent-check { width: 72px; height: 72px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 22px; animation: cm-pop .5s cubic-bezier(.3,1.5,.5,1) both; }
+  .cm-sent-recap { width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 6px 16px; margin: 22px 0; }
+  .cm-sent-recap > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .cm-sent-recap > div:last-child { border-bottom: none; }
+  .cm-sent-recap span { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; color: var(--faint); white-space: nowrap; }
+  .cm-sent-recap b { font-family: var(--mono); font-size: 13px; color: var(--text); font-weight: 500; white-space: nowrap; }
+
+  /* ════════════════ MATCHES LIST ════════════════ */
+  .cm-mlist { flex: 1; overflow-y: auto; padding: 8px 18px; }
+  .cm-mlist-head { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--faint); padding: 10px 4px; }
+  .cm-mrow { width: 100%; display: flex; align-items: center; gap: 13px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-bottom: 10px; cursor: pointer; text-align: left; }
+  .cm-mrow-main { flex: 1; min-width: 0; }
+  .cm-mrow-name { font-family: var(--display); text-transform: var(--display-case); font-size: 17px; letter-spacing: var(--display-tr); }
+  .cm-mrow-sub { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .cm-mrow-cta { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent-ink); background: var(--accent); padding: 8px 12px; border-radius: 9px; white-space: nowrap; }
+
+  /* ════════════════ SCHEDULE SHEET ════════════════ */
+  .cm-sheet-scrim { position: absolute; inset: 0; z-index: 45; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; opacity: 1; }
+  .cm-sheet { width: 100%; max-height: 88%; overflow-y: auto; background: var(--bg2); border-top-left-radius: 28px; border-top-right-radius: 28px; border-top: 1px solid var(--line); padding: 12px 22px 30px; animation: cm-rise .32s cubic-bezier(.2,.9,.3,1) both; }
+  @keyframes cm-rise { from { transform: translateY(26px); } to { transform: translateY(0); } }
+  .cm-sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 18px; }
+  .cm-sheet-head { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+  .cm-sheet-title { font-family: var(--display); text-transform: var(--display-case); font-size: 19px; letter-spacing: var(--display-tr); }
+  .cm-sheet-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .cm-sheet-label { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--faint); margin: 18px 0 10px; }
+  .cm-court-list { display: flex; flex-direction: column; gap: 8px; }
+  .cm-court { display: flex; align-items: center; justify-content: space-between; background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; cursor: pointer; transition: .15s; }
+  .cm-court.is-sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--card)); }
+  .cm-court-name { font-size: 14px; font-weight: 600; }
+  .cm-court-meta { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .cm-radio { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line); flex-shrink: 0; }
+  .cm-radio.is-sel { border-color: var(--accent); border-width: 6px; }
+  .cm-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cm-chip { background: var(--card); border: 1px solid var(--line); color: var(--muted); font-family: var(--mono); font-size: 12.5px; padding: 10px 15px; border-radius: 11px; cursor: pointer; transition: .15s; }
+  .cm-chip.is-sel { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  .cm-sheet-cta { margin-top: 26px; }
+
+  /* ════════════════ SIGNUP / ONBOARDING ════════════════ */
+  .cm-signup { position: relative; z-index: 1; height: 100%; display: flex; flex-direction: column; padding: 64px 24px 24px; }
+  .cm-su-top { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .cm-su-back { width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; color: var(--text); cursor: pointer; transition: .15s; }
+  .cm-su-back:active { transform: scale(.94); }
+  .cm-su-prog { flex: 1; display: flex; gap: 6px; }
+  .cm-su-seg { flex: 1; height: 4px; border-radius: 100px; background: var(--line); transition: background .25s; }
+  .cm-su-seg.is-on { background: var(--accent); }
+  .cm-su-count { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  .cm-su-body { flex: 1; min-height: 0; overflow-y: auto; padding-top: 26px; }
+  .cm-su-body::-webkit-scrollbar { width: 0; }
+  .cm-su-kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; color: var(--accent); }
+  .cm-su-title { font-family: var(--display); text-transform: var(--display-case); font-size: 38px; line-height: .94;
+    margin: 14px 0 22px; letter-spacing: var(--display-tr); white-space: pre-line; }
+
+  .cm-su-fields { display: flex; flex-direction: column; gap: 20px; }
+  .cm-field { display: flex; flex-direction: column; gap: 9px; }
+  .cm-field-label { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--faint); }
+  .cm-field-label i { font-style: normal; opacity: .7; }
+  .cm-input { width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 13px;
+    padding: 15px 15px; color: var(--text); font-family: 'Archivo', sans-serif; font-size: 16px; outline: none; transition: .15s; }
+  .cm-input::placeholder { color: var(--faint); }
+  .cm-input:focus { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+  .cm-textarea { resize: none; min-height: 96px; line-height: 1.5; font-size: 14.5px; }
+  .cm-su-counter { align-self: flex-end; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+  .cm-su-hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 2px 0 0; }
+  .cm-su-levels { margin: 0; }
+  .cm-su-foot { flex-shrink: 0; padding-top: 16px; }
+
+  /* ════════════════ SUPABASE AUTH EXTRAS ════════════════ */
+  .cm-splash { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: var(--bg); }
+  .cm-splash-logo { font-family: var(--display); text-transform: var(--display-case); font-size: 52px; letter-spacing: var(--display-tr); color: var(--accent); }
+  .cm-splash-spinner { width: 30px; height: 30px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: cm-spin .8s linear infinite; }
+  @keyframes cm-spin { to { transform: rotate(360deg); } }
+  .cm-input-wrap { position: relative; }
+  .cm-input-wrap .cm-input { padding-right: 46px; width: 100%; box-sizing: border-box; }
+  .cm-input-eye { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px; line-height: 1; }
+  .cm-su-error { background: color-mix(in srgb, #ff4f4f 12%, var(--card)); border: 1px solid color-mix(in srgb, #ff4f4f 35%, transparent); border-radius: 10px; padding: 10px 13px; font-family: var(--mono); font-size: 11.5px; color: #ff8080; margin-bottom: 6px; line-height: 1.4; }
+  .cm-su-login-link { background: none; border: none; color: var(--accent); font-family: var(--mono); font-size: 12px; padding: 8px 0; cursor: pointer; text-align: left; }
+  .cm-su-login-link:hover { text-decoration: underline; }
+  .cm-confirm-icon { font-size: 52px; margin-bottom: 4px; }
+
+  /* ════════════════ PROFILE ════════════════ */
+  .cm-profile { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 22px 28px; display: flex; flex-direction: column; gap: 18px; }
+  .cm-profile::-webkit-scrollbar { width: 0; }
+  .cm-prof-hero { display: flex; align-items: center; gap: 16px; }
+  .cm-prof-id { min-width: 0; }
+  .cm-prof-name-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .cm-prof-name { font-family: var(--display); text-transform: var(--display-case); font-size: 27px; line-height: 1;
+    margin: 0; letter-spacing: var(--display-tr); color: var(--text); }
+  .cm-prof-meta { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 9px; }
+  .cm-prof-court { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text); margin-top: 7px; }
+  .cm-prof-badge { font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent); padding: 4px 8px; border-radius: 7px; flex-shrink: 0; }
+  .cm-prof-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cm-prof-level { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; padding: 6px 11px; border-radius: 8px;
+    color: var(--lv); background: color-mix(in srgb, var(--lv) 14%, transparent); border: 1px solid color-mix(in srgb, var(--lv) 34%, transparent); }
+  .cm-prof-stats { margin-top: 0; }
+  .cm-prof-block { background: color-mix(in srgb, var(--bg) 55%, var(--card2)); border: 1px solid var(--line); border-radius: 16px; padding: 16px 16px; }
+  .cm-prof-block-label { font-family: var(--mono); font-size: 9px; letter-spacing: .14em; color: var(--faint); margin-bottom: 11px; }
+  .cm-prof-newrow { display: flex; align-items: center; gap: 16px; }
+  .cm-prof-newval { font-family: var(--display); text-transform: var(--display-case); font-size: 30px; line-height: .85; color: var(--accent); letter-spacing: var(--display-tr); flex-shrink: 0; }
+  .cm-prof-newval i { display: block; font-size: 11px; font-style: normal; color: var(--faint); letter-spacing: .1em; margin-top: 4px; }
+  .cm-prof-newrow p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+  .cm-prof-bio { margin: 0; color: var(--text); font-size: 14px; line-height: 1.55; }
+  .cm-prof-edit { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; white-space: nowrap;
+    background: var(--card); border: 1px solid var(--line); color: var(--text); font-family: var(--mono); font-size: 13px;
+    padding: 15px; border-radius: 14px; cursor: pointer; transition: .15s; margin-top: 2px; }
+  .cm-prof-edit:active { transform: scale(.99); }
+  .cm-prof-edit:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ════════════════ REQUESTS / MATCHES EXTRAS ════════════════ */
+  .cm-mrow-acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .cm-mrow-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+    background: var(--card2); border: 1px solid var(--line); border-radius: 11px; color: var(--text); cursor: pointer; transition: .15s; }
+  .cm-mrow-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .cm-mrow-cta { border: none; cursor: pointer; }
+  .cm-mrow.is-pending { opacity: .92; }
+  .cm-mrow-wait { display: flex; align-items: center; gap: 7px; color: var(--faint); }
+  .cm-wait-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: cm-pulse 1.4s ease-in-out infinite; }
+
+  /* ════════════════ CHAT ════════════════ */
+  .cm-chat-prev { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
+  .cm-unread { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--accent-ink);
+    font-family: var(--mono); font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  .cm-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .cm-chat-head { display: flex; align-items: center; gap: 11px; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .cm-chat-back { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; color: var(--text); cursor: pointer; }
+  .cm-chat-id { flex: 1; min-width: 0; }
+  .cm-chat-name { font-family: var(--display); text-transform: var(--display-case); font-size: 17px; letter-spacing: var(--display-tr); }
+  .cm-chat-status { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+  .cm-on-dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+  .cm-chat-sched { display: flex; align-items: center; gap: 6px; flex-shrink: 0; background: var(--card2); border: 1px solid var(--line);
+    color: var(--text); font-family: var(--mono); font-size: 12px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: .15s; }
+  .cm-chat-sched:hover { border-color: var(--accent); color: var(--accent); }
+
+  .cm-chat-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 9px; }
+  .cm-chat-body::-webkit-scrollbar { width: 0; }
+  .cm-chat-day { align-self: center; white-space: nowrap; font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em; color: var(--faint);
+    background: var(--card); border: 1px solid var(--line); padding: 5px 11px; border-radius: 100px; margin-bottom: 6px; }
+  .cm-bubble { max-width: 76%; padding: 11px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; }
+  .cm-bubble.is-them { align-self: flex-start; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-bottom-left-radius: 5px; }
+  .cm-bubble.is-me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); font-weight: 500; border-bottom-right-radius: 5px; }
+
+  .cm-chat-input { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-top: 1px solid var(--line); flex-shrink: 0; }
+  .cm-chat-input input { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px;
+    color: var(--text); font-family: 'Archivo', sans-serif; font-size: 15px; outline: none; transition: .15s; }
+  .cm-chat-input input:focus { border-color: var(--accent); }
+  .cm-chat-input input::placeholder { color: var(--faint); }
+  .cm-chat-send { width: 46px; height: 46px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--accent); border: none; border-radius: 13px; cursor: pointer; transition: .15s; }
+  .cm-chat-send:disabled { opacity: .4; cursor: default; }
+  .cm-chat-send:not(:disabled):active { transform: scale(.94); }
+
+  /* ════════════════ ACCEPT TOAST ════════════════ */
+  .cm-toast { position: absolute; top: 60px; left: 14px; right: 14px; z-index: 50; display: flex; align-items: center; gap: 12px;
+    background: color-mix(in srgb, var(--bg2) 94%, var(--accent)); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+    border-radius: 16px; padding: 11px 13px; cursor: pointer; text-align: left; box-shadow: 0 16px 36px rgba(0,0,0,.5);
+    animation: cm-toast-in .35s cubic-bezier(.3,1.3,.5,1) both; }
+  @keyframes cm-toast-in { from { transform: translateY(-18px); } to { transform: translateY(0); } }
+  .cm-toast-main { flex: 1; min-width: 0; }
+  .cm-toast-title { font-family: var(--display); text-transform: var(--display-case); font-size: 15px; letter-spacing: var(--display-tr); color: var(--text); }
+  .cm-toast-sub { font-family: var(--mono); font-size: 10.5px; color: var(--accent); margin-top: 3px; }
+  .cm-toast-x { width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 20px; line-height: 1; border-radius: 8px; }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="device">
+      <div class="dev-island"></div>
+      <div class="dev-status">
+        <span class="dev-time">9:41</span>
+        <span class="dev-icons">
+          <svg width="18" height="12" viewBox="0 0 19 12"><rect x="0" y="7.5" width="3.2" height="4.5" rx="0.7" fill="#fff"/><rect x="4.8" y="5" width="3.2" height="7" rx="0.7" fill="#fff"/><rect x="9.6" y="2.5" width="3.2" height="9.5" rx="0.7" fill="#fff"/><rect x="14.4" y="0" width="3.2" height="12" rx="0.7" fill="#fff"/></svg>
+          <svg width="16" height="12" viewBox="0 0 17 12"><path d="M8.5 3.2C10.8 3.2 12.9 4.1 14.4 5.6L15.5 4.5C13.7 2.7 11.2 1.5 8.5 1.5C5.8 1.5 3.3 2.7 1.5 4.5L2.6 5.6C4.1 4.1 6.2 3.2 8.5 3.2Z" fill="#fff"/><path d="M8.5 6.8C9.9 6.8 11.1 7.3 12 8.2L13.1 7.1C11.8 5.9 10.2 5.1 8.5 5.1C6.8 5.1 5.2 5.9 3.9 7.1L5 8.2C5.9 7.3 7.1 6.8 8.5 6.8Z" fill="#fff"/><circle cx="8.5" cy="10.5" r="1.5" fill="#fff"/></svg>
+          <svg width="25" height="12" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke="#fff" stroke-opacity="0.35" fill="none"/><rect x="2" y="2" width="20" height="9" rx="2" fill="#fff"/><path d="M25 4.5V8.5C25.8 8.2 26.5 7.2 26.5 6.5C26.5 5.8 25.8 4.8 25 4.5Z" fill="#fff" fill-opacity="0.4"/></svg>
+        </span>
+      </div>
+      <div id="root"></div>
+      <div class="dev-home"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script>
+// courtmate-supabase.js — Supabase istemcisi + tüm API fonksiyonları
+// anon key frontend için tasarlanmış ve güvenli; asıl güvenlik RLS politikalarından geliyor.
+// Exposes to window: cm_db, profileToMe,
+//   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
+//   cmSyncProfile, cmGetProfile, cmUpdateProfile,
+//   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
+//   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches
+
+const CM_SUPABASE_URL  = 'https://auvswprcxndqdkvrshur.supabase.co';
+const CM_SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF1dnN3cHJjeG5kcWRrdnJzaHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NDQ4OTgsImV4cCI6MjA5NzAyMDg5OH0.mThEdEi2fajDxlUAh7FvE8T6UxlqPcEGJi3lWx_njFQ';
+
+// Supabase yüklenmediyse uygulama çökmesini engelle
+if (!window.supabase) {
+  console.warn('Supabase CDN yüklenemedi — offline mod');
+  window.supabase = { createClient: () => ({
+    auth: { getSession: async () => ({ data: { session: null }, error: null }),
+             signUp: async () => { throw new Error('Çevrimdışısın, internet bağlantını kontrol et'); },
+             signInWithPassword: async () => { throw new Error('Çevrimdışısın, internet bağlantını kontrol et'); },
+             signOut: async () => ({}),
+             onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
+    from: () => ({ select: () => ({ neq: () => ({ data: [], error: null }), eq: () => ({ maybeSingle: async () => ({ data: null, error: null }), data: [], error: null }), or: async () => ({ data: [], error: null }) }), insert: () => ({ select: () => ({ single: async () => ({ data: null, error: new Error('Çevrimdışı') }) }) }), update: () => ({ eq: () => ({ select: () => ({ single: async () => ({ data: null, error: new Error('Çevrimdışı') }) }) }) }), upsert: async () => ({ error: null }) }),
+    channel: () => ({ on: function() { return this; }, subscribe: () => {} }),
+  }) };
+}
+
+const { createClient } = window.supabase;
+const cm_db = createClient(CM_SUPABASE_URL, CM_SUPABASE_ANON, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+});
+
+// ── Yardımcı ──────────────────────────────────────────────
+function _initials(name) {
+  const p = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toLocaleUpperCase('tr');
+}
+function _hue(s) {
+  let h = 7;
+  for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return h;
+}
+
+// DB profile satırını uygulama içi `me` nesnesine dönüştür
+function profileToMe(profile, email) {
+  const levels = window.CM_LEVELS || [];
+  const lvl = levels.find(l => l.id === profile.level);
+  return {
+    id:         profile.id,
+    isMe:       true,
+    email:      email || '',
+    name:       profile.name,
+    initials:   _initials(profile.name),
+    age:        profile.age,
+    level:      profile.level,
+    levelLabel: lvl ? lvl.label : profile.level,
+    utrRange:   lvl ? lvl.utr : '—',
+    style:      profile.style  || '',
+    hand:       profile.hand   || 'Sağ el',
+    court:      profile.court  || '—',
+    avail:      profile.avail  || '',
+    bio:        profile.bio    || '',
+    hue:        _hue((profile.name || '') + (profile.style || '')),
+  };
+}
+
+// ── Auth ──────────────────────────────────────────────────
+
+async function cmSignUp(email, password, profile) {
+  const { data, error } = await cm_db.auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      data: {
+        name:  profile.name,
+        age:   String(profile.age),
+        level: profile.level,
+        style: profile.style  || '',
+        hand:  profile.hand   || 'Sağ el',
+        court: profile.court  || '',
+        avail: profile.avail  || '',
+        bio:   profile.bio    || '',
+      }
+    }
+  });
+  if (error) throw error;
+
+  const needsConfirmation = !data.session;
+
+  // E-posta onayı gerekmiyorsa profili hemen yaz
+  if (data.session && data.user) {
+    await cmSyncProfile(data.user.id, profile);
+  }
+
+  return { needsConfirmation, user: data.user, session: data.session };
+}
+
+async function cmSignIn(email, password) {
+  const { data, error } = await cm_db.auth.signInWithPassword({ email: email.trim(), password });
+  if (error) throw error;
+  return data; // { user, session }
+}
+
+async function cmSignOut() {
+  const { error } = await cm_db.auth.signOut();
+  if (error) console.warn('cmSignOut:', error.message);
+}
+
+async function cmGetSession() {
+  const { data, error } = await cm_db.auth.getSession();
+  if (error) throw error;
+  return data; // { session }
+}
+
+function cmOnAuthStateChange(callback) {
+  return cm_db.auth.onAuthStateChange(callback);
+}
+
+// ── Profil ────────────────────────────────────────────────
+
+async function cmSyncProfile(userId, profile) {
+  const { error } = await cm_db.from('profiles').upsert({
+    id:    userId,
+    name:  profile.name,
+    age:   Number(profile.age),
+    level: profile.level,
+    style: profile.style  || null,
+    hand:  profile.hand   || 'Sağ el',
+    court: profile.court && profile.court !== '—' ? profile.court : null,
+    avail: profile.avail  || null,
+    bio:   profile.bio    || null,
+  });
+  if (error) throw error;
+}
+
+async function cmGetProfile(userId) {
+  const { data, error } = await cm_db
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function cmUpdateProfile(userId, updates) {
+  const { data, error } = await cm_db
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ── Eşleşmeler ────────────────────────────────────────────
+
+async function cmSendMatchRequest(senderId, receiverId) {
+  const { data, error } = await cm_db
+    .from('matches')
+    .insert({ sender_id: senderId, receiver_id: receiverId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function cmGetMatches(userId) {
+  const { data, error } = await cm_db
+    .from('matches')
+    .select('*, sender:sender_id(id,name,age,level,court,avail,style,hand), receiver:receiver_id(id,name,age,level,court,avail,style,hand)')
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`);
+  if (error) throw error;
+  return data || [];
+}
+
+async function cmAcceptMatch(matchId) {
+  const { data, error } = await cm_db
+    .from('matches')
+    .update({ status: 'accepted' })
+    .eq('id', matchId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// ── Mesajlar ──────────────────────────────────────────────
+
+async function cmGetMessages(matchId) {
+  const { data, error } = await cm_db
+    .from('messages')
+    .select('*')
+    .eq('match_id', matchId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+async function cmSendMsg(matchId, senderId, text) {
+  const { data, error } = await cm_db
+    .from('messages')
+    .insert({ match_id: matchId, sender_id: senderId, text })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function cmMarkRead(matchId, userId) {
+  await cm_db
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('match_id', matchId)
+    .neq('sender_id', userId)
+    .is('read_at', null);
+}
+
+function cmSubscribeMessages(matchId, callback) {
+  return cm_db
+    .channel(`messages-${matchId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `match_id=eq.${matchId}` }, callback)
+    .subscribe();
+}
+
+function cmSubscribeMatches(userId, callback) {
+  return cm_db
+    .channel(`matches-user-${userId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter: `receiver_id=eq.${userId}` }, callback)
+    .subscribe();
+}
+
+// Tüm mesajları dinle (RLS sadece bizim görebildiğimiz satırları gönderir)
+function cmSubscribeAllMessages(callback) {
+  return cm_db
+    .channel('messages-all-' + Math.random().toString(36).slice(2))
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, callback)
+    .subscribe();
+}
+
+// Tüm eşleşme değişikliklerini dinle (RLS: sadece kendi eşleşmelerimiz)
+function cmSubscribeAllMatches(callback) {
+  return cm_db
+    .channel('matches-all-' + Math.random().toString(36).slice(2))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, callback)
+    .subscribe();
+}
+
+// ── Keşfet: Gerçek oyuncuları getir ───────────────────────
+function _utrFromProfile(p) {
+  const ranges = { baslangic: [2.0, 3.9], orta: [4.0, 6.9], ileri: [7.0, 10.0] };
+  const [min, max] = ranges[p.level] || [3.0, 6.0];
+  let h = 0; for (const c of String(p.id || '')) h = (h * 31 + c.charCodeAt(0)) % 1000;
+  return +(min + (h / 1000) * (max - min)).toFixed(1);
+}
+
+function profileToPlayer(p, sentToIds, receivedFromIds) {
+  return {
+    id:       p.id,
+    name:     p.name,
+    initials: _initials(p.name),
+    age:      p.age,
+    level:    p.level,
+    utr:      _utrFromProfile(p),
+    dist:     p.location ? 'Yakın' : '—',
+    avail:    p.avail   || 'Esnek',
+    court:    p.court   || 'Belirtilmemiş',
+    mutual:   (receivedFromIds || new Set()).has(p.id) && !(sentToIds || new Set()).has(p.id),
+    style:    p.style   || '',
+    hand:     p.hand    || 'Sağ el',
+    bio:      p.bio     || '',
+    hue:      _hue((p.name || '') + (p.style || '')),
+    verified: false,
+    isReal:   true,
+  };
+}
+
+async function cmGetDiscoverPlayers(userId) {
+  const [{ data: profiles, error: pe }, { data: myMatches }] = await Promise.all([
+    cm_db.from('profiles').select('*').neq('id', userId),
+    cm_db.from('matches').select('sender_id,receiver_id,status')
+      .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`),
+  ]);
+  if (pe) throw pe;
+  const sentTo       = new Set((myMatches || []).filter(m => m.sender_id   === userId).map(m => m.receiver_id));
+  const receivedFrom = new Set((myMatches || []).filter(m => m.receiver_id === userId).map(m => m.sender_id));
+  return (profiles || []).map(p => profileToPlayer(p, sentTo, receivedFrom));
+}
+
+Object.assign(window, {
+  cm_db, profileToMe, profileToPlayer,
+  cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
+  cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
+  cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
+  cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
+  cmSubscribeAllMessages, cmSubscribeAllMatches,
+});
+
+</script>
+  <script type="text/babel">
+
+// ═══ tweaks-panel.jsx ═══
+// @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
+
+/* BEGIN USAGE */
+// tweaks-panel.jsx
+// Reusable Tweaks shell + form-control helpers.
+// Exports (to window): useTweaks, TweaksPanel, TweakSection, TweakRow, TweakSlider,
+//   TweakToggle, TweakRadio, TweakSelect, TweakText, TweakNumber, TweakColor, TweakButton.
+//
+// Owns the host protocol (listens for __activate_edit_mode / __deactivate_edit_mode,
+// posts __edit_mode_available / __edit_mode_set_keys / __edit_mode_dismissed) so
+// individual prototypes don't re-roll it. Ships a consistent set of controls so you
+// don't hand-draw <input type="range">, segmented radios, steppers, etc.
+//
+// Usage (in an HTML file that loads React + Babel):
+//
+//   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+//     "primaryColor": "#D97757",
+//     "palette": ["#D97757", "#29261b", "#f6f4ef"],
+//     "fontSize": 16,
+//     "density": "regular",
+//     "dark": false
+//   }/*EDITMODE-END*/;
+//
+//   function App() {
+//     const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+//     return (
+//       <div style={{ fontSize: t.fontSize, color: t.primaryColor }}>
+//         Hello
+//         <TweaksPanel>
+//           <TweakSection label="Typography" />
+//           <TweakSlider label="Font size" value={t.fontSize} min={10} max={32} unit="px"
+//                        onChange={(v) => setTweak('fontSize', v)} />
+//           <TweakRadio  label="Density" value={t.density}
+//                        options={['compact', 'regular', 'comfy']}
+//                        onChange={(v) => setTweak('density', v)} />
+//           <TweakSection label="Theme" />
+//           <TweakColor  label="Primary" value={t.primaryColor}
+//                        options={['#D97757', '#2A6FDB', '#1F8A5B', '#7A5AE0']}
+//                        onChange={(v) => setTweak('primaryColor', v)} />
+//           <TweakColor  label="Palette" value={t.palette}
+//                        options={[['#D97757', '#29261b', '#f6f4ef'],
+//                                  ['#475569', '#0f172a', '#f1f5f9']]}
+//                        onChange={(v) => setTweak('palette', v)} />
+//           <TweakToggle label="Dark mode" value={t.dark}
+//                        onChange={(v) => setTweak('dark', v)} />
+//         </TweaksPanel>
+//       </div>
+//     );
+//   }
+//
+// TweakRadio is the segmented control for 2–3 short options (auto-falls-back to
+// TweakSelect past ~16/~10 chars per label); reach for TweakSelect directly when
+// options are many or long. For color tweaks always curate 3-4 options rather than
+// a free picker; an option can also be a whole 2–5 color palette (the stored value
+// is the array). The Tweak* controls are a floor, not a ceiling — build custom
+// controls inside the panel if a tweak calls for UI they don't cover.
+/* END USAGE */
+// ─────────────────────────────────────────────────────────────────────────────
+
+const __TWEAKS_STYLE = `
+  .twk-panel{position:fixed;right:16px;bottom:16px;z-index:2147483646;width:280px;
+    max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+    transform:scale(var(--dc-inv-zoom,1));transform-origin:bottom right;
+    background:rgba(250,249,247,.78);color:#29261b;
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    border:.5px solid rgba(255,255,255,.6);border-radius:14px;
+    box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 40px rgba(0,0,0,.18);
+    font:11.5px/1.4 ui-sans-serif,system-ui,-apple-system,sans-serif;overflow:hidden}
+  .twk-hd{display:flex;align-items:center;justify-content:space-between;
+    padding:10px 8px 10px 14px;cursor:move;user-select:none}
+  .twk-hd b{font-size:12px;font-weight:600;letter-spacing:.01em}
+  .twk-x{appearance:none;border:0;background:transparent;color:rgba(41,38,27,.55);
+    width:22px;height:22px;border-radius:6px;cursor:default;font-size:13px;line-height:1}
+  .twk-x:hover{background:rgba(0,0,0,.06);color:#29261b}
+  .twk-body{padding:2px 14px 14px;display:flex;flex-direction:column;gap:10px;
+    overflow-y:auto;overflow-x:hidden;min-height:0;
+    scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.15) transparent}
+  .twk-body::-webkit-scrollbar{width:8px}
+  .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
+  .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
+    border:2px solid transparent;background-clip:content-box}
+  .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
+    border:2px solid transparent;background-clip:content-box}
+  .twk-row{display:flex;flex-direction:column;gap:5px}
+  .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
+  .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
+    color:rgba(41,38,27,.72)}
+  .twk-lbl>span:first-child{font-weight:500}
+  .twk-val{color:rgba(41,38,27,.5);font-variant-numeric:tabular-nums}
+
+  .twk-sect{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(41,38,27,.45);padding:10px 0 0}
+  .twk-sect:first-child{padding-top:0}
+
+  .twk-field{appearance:none;box-sizing:border-box;width:100%;min-width:0;height:26px;padding:0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;
+    background:rgba(255,255,255,.6);color:inherit;font:inherit;outline:none}
+  .twk-field:focus{border-color:rgba(0,0,0,.25);background:rgba(255,255,255,.85)}
+  select.twk-field{padding-right:22px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='rgba(0,0,0,.5)' d='M0 0h10L5 6z'/></svg>");
+    background-repeat:no-repeat;background-position:right 8px center}
+
+  .twk-slider{appearance:none;-webkit-appearance:none;width:100%;height:4px;margin:6px 0;
+    border-radius:999px;background:rgba(0,0,0,.12);outline:none}
+  .twk-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:14px;height:14px;border-radius:50%;background:#fff;
+    border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+  .twk-slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+    background:#fff;border:.5px solid rgba(0,0,0,.12);box-shadow:0 1px 3px rgba(0,0,0,.2);cursor:default}
+
+  .twk-seg{position:relative;display:flex;padding:2px;border-radius:8px;
+    background:rgba(0,0,0,.06);user-select:none}
+  .twk-seg-thumb{position:absolute;top:2px;bottom:2px;border-radius:6px;
+    background:rgba(255,255,255,.9);box-shadow:0 1px 2px rgba(0,0,0,.12);
+    transition:left .15s cubic-bezier(.3,.7,.4,1),width .15s}
+  .twk-seg.dragging .twk-seg-thumb{transition:none}
+  .twk-seg button{appearance:none;position:relative;z-index:1;flex:1;border:0;
+    background:transparent;color:inherit;font:inherit;font-weight:500;min-height:22px;
+    border-radius:6px;cursor:default;padding:4px 6px;line-height:1.2;
+    overflow-wrap:anywhere}
+
+  .twk-toggle{position:relative;width:32px;height:18px;border:0;border-radius:999px;
+    background:rgba(0,0,0,.15);transition:background .15s;cursor:default;padding:0}
+  .twk-toggle[data-on="1"]{background:#34c759}
+  .twk-toggle i{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+    background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s}
+  .twk-toggle[data-on="1"] i{transform:translateX(14px)}
+
+  .twk-num{display:flex;align-items:center;box-sizing:border-box;min-width:0;height:26px;padding:0 0 0 8px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:7px;background:rgba(255,255,255,.6)}
+  .twk-num-lbl{font-weight:500;color:rgba(41,38,27,.6);cursor:ew-resize;
+    user-select:none;padding-right:8px}
+  .twk-num input{flex:1;min-width:0;height:100%;border:0;background:transparent;
+    font:inherit;font-variant-numeric:tabular-nums;text-align:right;padding:0 8px 0 0;
+    outline:none;color:inherit;-moz-appearance:textfield}
+  .twk-num input::-webkit-inner-spin-button,.twk-num input::-webkit-outer-spin-button{
+    -webkit-appearance:none;margin:0}
+  .twk-num-unit{padding-right:8px;color:rgba(41,38,27,.45)}
+
+  .twk-btn{appearance:none;height:26px;padding:0 12px;border:0;border-radius:7px;
+    background:rgba(0,0,0,.78);color:#fff;font:inherit;font-weight:500;cursor:default}
+  .twk-btn:hover{background:rgba(0,0,0,.88)}
+  .twk-btn.secondary{background:rgba(0,0,0,.06);color:inherit}
+  .twk-btn.secondary:hover{background:rgba(0,0,0,.1)}
+
+  .twk-swatch{appearance:none;-webkit-appearance:none;width:56px;height:22px;
+    border:.5px solid rgba(0,0,0,.1);border-radius:6px;padding:0;cursor:default;
+    background:transparent;flex-shrink:0}
+  .twk-swatch::-webkit-color-swatch-wrapper{padding:0}
+  .twk-swatch::-webkit-color-swatch{border:0;border-radius:5.5px}
+  .twk-swatch::-moz-color-swatch{border:0;border-radius:5.5px}
+
+  .twk-chips{display:flex;gap:6px}
+  .twk-chip{position:relative;appearance:none;flex:1;min-width:0;height:46px;
+    padding:0;border:0;border-radius:6px;overflow:hidden;cursor:default;
+    box-shadow:0 0 0 .5px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.06);
+    transition:transform .12s cubic-bezier(.3,.7,.4,1),box-shadow .12s}
+  .twk-chip:hover{transform:translateY(-1px);
+    box-shadow:0 0 0 .5px rgba(0,0,0,.18),0 4px 10px rgba(0,0,0,.12)}
+  .twk-chip[data-on="1"]{box-shadow:0 0 0 1.5px rgba(0,0,0,.85),
+    0 2px 6px rgba(0,0,0,.15)}
+  .twk-chip>span{position:absolute;top:0;bottom:0;right:0;width:34%;
+    display:flex;flex-direction:column;box-shadow:-1px 0 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i{flex:1;box-shadow:0 -1px 0 rgba(0,0,0,.1)}
+  .twk-chip>span>i:first-child{box-shadow:none}
+  .twk-chip svg{position:absolute;top:6px;left:6px;width:13px;height:13px;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.3))}
+`;
+
+// ── useTweaks ───────────────────────────────────────────────────────────────
+// Single source of truth for tweak values. setTweak persists via the host
+// (__edit_mode_set_keys → host rewrites the EDITMODE block on disk).
+function useTweaks(defaults) {
+  const [values, setValues] = React.useState(defaults);
+  // Accepts either setTweak('key', value) or setTweak({ key: value, ... }) so a
+  // useState-style call doesn't write a "[object Object]" key into the persisted
+  // JSON block.
+  const setTweak = React.useCallback((keyOrEdits, val) => {
+    const edits = typeof keyOrEdits === 'object' && keyOrEdits !== null
+      ? keyOrEdits : { [keyOrEdits]: val };
+    setValues((prev) => ({ ...prev, ...edits }));
+    window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
+    // Same-window signal so in-page listeners (deck-stage rail thumbnails)
+    // can react — the parent message only reaches the host, not peers.
+    window.dispatchEvent(new CustomEvent('tweakchange', { detail: edits }));
+  }, []);
+  return [values, setTweak];
+}
+
+// ── TweaksPanel ─────────────────────────────────────────────────────────────
+// Floating shell. Registers the protocol listener BEFORE announcing
+// availability — if the announce ran first, the host's activate could land
+// before our handler exists and the toolbar toggle would silently no-op.
+// The close button posts __edit_mode_dismissed so the host's toolbar toggle
+// flips off in lockstep; the host echoes __deactivate_edit_mode back which
+// is what actually hides the panel.
+function TweaksPanel({ title = 'Tweaks', children }) {
+  const [open, setOpen] = React.useState(false);
+  const dragRef = React.useRef(null);
+  const offsetRef = React.useRef({ x: 16, y: 16 });
+  const PAD = 16;
+
+  const clampToViewport = React.useCallback(() => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxRight = Math.max(PAD, window.innerWidth - w - PAD);
+    const maxBottom = Math.max(PAD, window.innerHeight - h - PAD);
+    offsetRef.current = {
+      x: Math.min(maxRight, Math.max(PAD, offsetRef.current.x)),
+      y: Math.min(maxBottom, Math.max(PAD, offsetRef.current.y)),
+    };
+    panel.style.right = offsetRef.current.x + 'px';
+    panel.style.bottom = offsetRef.current.y + 'px';
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    clampToViewport();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', clampToViewport);
+      return () => window.removeEventListener('resize', clampToViewport);
+    }
+    const ro = new ResizeObserver(clampToViewport);
+    ro.observe(document.documentElement);
+    return () => ro.disconnect();
+  }, [open, clampToViewport]);
+
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      const t = e?.data?.type;
+      if (t === '__activate_edit_mode') setOpen(true);
+      else if (t === '__deactivate_edit_mode') setOpen(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const dismiss = () => {
+    setOpen(false);
+    window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+  };
+
+  const onDragStart = (e) => {
+    const panel = dragRef.current;
+    if (!panel) return;
+    const r = panel.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const startRight = window.innerWidth - r.right;
+    const startBottom = window.innerHeight - r.bottom;
+    const move = (ev) => {
+      offsetRef.current = {
+        x: startRight - (ev.clientX - sx),
+        y: startBottom - (ev.clientY - sy),
+      };
+      clampToViewport();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  if (!open) return null;
+  return (
+    <>
+      <style>{__TWEAKS_STYLE}</style>
+      <div ref={dragRef} className="twk-panel" data-omelette-chrome=""
+           style={{ right: offsetRef.current.x, bottom: offsetRef.current.y }}>
+        <div className="twk-hd" onMouseDown={onDragStart}>
+          <b>{title}</b>
+          <button className="twk-x" aria-label="Close tweaks"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={dismiss}>✕</button>
+        </div>
+        <div className="twk-body">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Layout helpers ──────────────────────────────────────────────────────────
+
+function TweakSection({ label, children }) {
+  return (
+    <>
+      <div className="twk-sect">{label}</div>
+      {children}
+    </>
+  );
+}
+
+function TweakRow({ label, value, children, inline = false }) {
+  return (
+    <div className={inline ? 'twk-row twk-row-h' : 'twk-row'}>
+      <div className="twk-lbl">
+        <span>{label}</span>
+        {value != null && <span className="twk-val">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+
+function TweakSlider({ label, value, min = 0, max = 100, step = 1, unit = '', onChange }) {
+  return (
+    <TweakRow label={label} value={`${value}${unit}`}>
+      <input type="range" className="twk-slider" min={min} max={max} step={step}
+             value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </TweakRow>
+  );
+}
+
+function TweakToggle({ label, value, onChange }) {
+  return (
+    <div className="twk-row twk-row-h">
+      <div className="twk-lbl"><span>{label}</span></div>
+      <button type="button" className="twk-toggle" data-on={value ? '1' : '0'}
+              role="switch" aria-checked={!!value}
+              onClick={() => onChange(!value)}><i /></button>
+    </div>
+  );
+}
+
+function TweakRadio({ label, value, options, onChange }) {
+  const trackRef = React.useRef(null);
+  const [dragging, setDragging] = React.useState(false);
+  // The active value is read by pointer-move handlers attached for the lifetime
+  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
+
+  // Segments wrap mid-word once per-segment width runs out. The track is
+  // ~248px (280 panel − 28 body pad − 4 seg pad), each button loses 12px
+  // to its own padding, and 11.5px system-ui averages ~6.3px/char — so 2
+  // options fit ~16 chars each, 3 fit ~10. Past that (or >3 options), fall
+  // back to a dropdown rather than wrap.
+  const labelLen = (o) => String(typeof o === 'object' ? o.label : o).length;
+  const maxLen = options.reduce((m, o) => Math.max(m, labelLen(o)), 0);
+  const fitsAsSegments = maxLen <= ({ 2: 16, 3: 10 }[options.length] ?? 0);
+  if (!fitsAsSegments) {
+    // <select> emits strings — map back to the original option value so the
+    // fallback stays type-preserving (numbers, booleans) like the segment path.
+    const resolve = (s) => {
+      const m = options.find((o) => String(typeof o === 'object' ? o.value : o) === s);
+      return m === undefined ? s : typeof m === 'object' ? m.value : m;
+    };
+    return <TweakSelect label={label} value={value} options={options}
+                        onChange={(s) => onChange(resolve(s))} />;
+  }
+  const opts = options.map((o) => (typeof o === 'object' ? o : { value: o, label: o }));
+  const idx = Math.max(0, opts.findIndex((o) => o.value === value));
+  const n = opts.length;
+
+  const segAt = (clientX) => {
+    const r = trackRef.current.getBoundingClientRect();
+    const inner = r.width - 4;
+    const i = Math.floor(((clientX - r.left - 2) / inner) * n);
+    return opts[Math.max(0, Math.min(n - 1, i))].value;
+  };
+
+  const onPointerDown = (e) => {
+    setDragging(true);
+    const v0 = segAt(e.clientX);
+    if (v0 !== valueRef.current) onChange(v0);
+    const move = (ev) => {
+      if (!trackRef.current) return;
+      const v = segAt(ev.clientX);
+      if (v !== valueRef.current) onChange(v);
+    };
+    const up = () => {
+      setDragging(false);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  return (
+    <TweakRow label={label}>
+      <div ref={trackRef} role="radiogroup" onPointerDown={onPointerDown}
+           className={dragging ? 'twk-seg dragging' : 'twk-seg'}>
+        <div className="twk-seg-thumb"
+             style={{ left: `calc(2px + ${idx} * (100% - 4px) / ${n})`,
+                      width: `calc((100% - 4px) / ${n})` }} />
+        {opts.map((o) => (
+          <button key={o.value} type="button" role="radio" aria-checked={o.value === value}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakSelect({ label, value, options, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <select className="twk-field" value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => {
+          const v = typeof o === 'object' ? o.value : o;
+          const l = typeof o === 'object' ? o.label : o;
+          return <option key={v} value={v}>{l}</option>;
+        })}
+      </select>
+    </TweakRow>
+  );
+}
+
+function TweakText({ label, value, placeholder, onChange }) {
+  return (
+    <TweakRow label={label}>
+      <input className="twk-field" type="text" value={value} placeholder={placeholder}
+             onChange={(e) => onChange(e.target.value)} />
+    </TweakRow>
+  );
+}
+
+function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) {
+  const clamp = (n) => {
+    if (min != null && n < min) return min;
+    if (max != null && n > max) return max;
+    return n;
+  };
+  const startRef = React.useRef({ x: 0, val: 0 });
+  const onScrubStart = (e) => {
+    e.preventDefault();
+    startRef.current = { x: e.clientX, val: value };
+    const decimals = (String(step).split('.')[1] || '').length;
+    const move = (ev) => {
+      const dx = ev.clientX - startRef.current.x;
+      const raw = startRef.current.val + dx * step;
+      const snapped = Math.round(raw / step) * step;
+      onChange(clamp(Number(snapped.toFixed(decimals))));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <div className="twk-num">
+      <span className="twk-num-lbl" onPointerDown={onScrubStart}>{label}</span>
+      <input type="number" value={value} min={min} max={max} step={step}
+             onChange={(e) => onChange(clamp(Number(e.target.value)))} />
+      {unit && <span className="twk-num-unit">{unit}</span>}
+    </div>
+  );
+}
+
+// Relative-luminance contrast pick — checkmarks drawn over a swatch need to
+// read on both #111 and #fafafa without per-option configuration. Hex input
+// only (#rgb / #rrggbb); named or rgb()/hsl() colors fall through to "light".
+function __twkIsLight(hex) {
+  const h = String(hex).replace('#', '');
+  const x = h.length === 3 ? h.replace(/./g, (c) => c + c) : h.padEnd(6, '0');
+  const n = parseInt(x.slice(0, 6), 16);
+  if (Number.isNaN(n)) return true;
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return r * 299 + g * 587 + b * 114 > 148000;
+}
+
+const __TwkCheck = ({ light }) => (
+  <svg viewBox="0 0 14 14" aria-hidden="true">
+    <path d="M3 7.2 5.8 10 11 4.2" fill="none" strokeWidth="2.2"
+          strokeLinecap="round" strokeLinejoin="round"
+          stroke={light ? 'rgba(0,0,0,.78)' : '#fff'} />
+  </svg>
+);
+
+// TweakColor — curated color/palette picker. Each option is either a single
+// hex string or an array of 1-5 hex strings; the card adapts — a lone color
+// renders solid, a palette renders colors[0] as the hero (left ~2/3) with the
+// rest stacked in a sharp column on the right. onChange emits the
+// option in the shape it was passed (string stays string, array stays array).
+// Without options it falls back to the native color input for back-compat.
+function TweakColor({ label, value, options, onChange }) {
+  if (!options || !options.length) {
+    return (
+      <div className="twk-row twk-row-h">
+        <div className="twk-lbl"><span>{label}</span></div>
+        <input type="color" className="twk-swatch" value={value}
+               onChange={(e) => onChange(e.target.value)} />
+      </div>
+    );
+  }
+  // Native <input type=color> emits lowercase hex per the HTML spec, so
+  // compare case-insensitively. String() guards JSON.stringify(undefined),
+  // which returns the primitive undefined (no .toLowerCase).
+  const key = (o) => String(JSON.stringify(o)).toLowerCase();
+  const cur = key(value);
+  return (
+    <TweakRow label={label}>
+      <div className="twk-chips" role="radiogroup">
+        {options.map((o, i) => {
+          const colors = Array.isArray(o) ? o : [o];
+          const [hero, ...rest] = colors;
+          const sup = rest.slice(0, 4);
+          const on = key(o) === cur;
+          return (
+            <button key={i} type="button" className="twk-chip" role="radio"
+                    aria-checked={on} data-on={on ? '1' : '0'}
+                    aria-label={colors.join(', ')} title={colors.join(' · ')}
+                    style={{ background: hero }}
+                    onClick={() => onChange(o)}>
+              {sup.length > 0 && (
+                <span>
+                  {sup.map((c, j) => <i key={j} style={{ background: c }} />)}
+                </span>
+              )}
+              {on && <__TwkCheck light={__twkIsLight(hero)} />}
+            </button>
+          );
+        })}
+      </div>
+    </TweakRow>
+  );
+}
+
+function TweakButton({ label, onClick, secondary = false }) {
+  return (
+    <button type="button" className={secondary ? 'twk-btn secondary' : 'twk-btn'}
+            onClick={onClick}>{label}</button>
+  );
+}
+
+Object.assign(window, {
+  useTweaks, TweaksPanel, TweakSection, TweakRow,
+  TweakSlider, TweakToggle, TweakRadio, TweakSelect,
+  TweakText, TweakNumber, TweakColor, TweakButton,
+});
+
+
+// ═══ courtmate-data.jsx ═══
+// courtmate-data.jsx — player data + small shared UI atoms
+// Exposes to window: CM_PLAYERS, CM_LEVELS, Avatar, StatTile, Stars, Pill, MateScore, cx
+
+const CM_LEVELS = [
+  { id: 'baslangic', label: 'Başlangıç', utr: '1–3.5', desc: 'Yeni başlıyor, ralliyi öğreniyor' },
+  { id: 'orta',      label: 'Orta',      utr: '3.5–6', desc: 'Düzenli oynuyor, maç tecrübesi var' },
+  { id: 'ileri',     label: 'İleri',     utr: '6+',    desc: 'Turnuva / kulüp seviyesi' },
+];
+
+// hue is used for a subtle duotone tint on the avatar so players read distinct
+const CM_PLAYERS = [
+  {
+    id: 'selin', name: 'Selin A.', initials: 'SA', utr: 7.1, dist: 1.1, hue: 86,
+    avail: 'Şu an müsait', availHot: true, level: 'ileri', wl: '4G-1M',
+    mate: 4.9, onTime: 96, forehand: 5, serve: 4, style: 'Agresif baseline',
+    hand: 'Sağ', court: 'Caddebostan Tenis', verified: true, mutual: true,
+    bio: 'Sabah kortları severim. Uzun ralli, sert forehand. Maç sonrası kahve şart.',
+  },
+  {
+    id: 'emre', name: 'Emre K.', initials: 'EK', utr: 6.2, dist: 2.4, hue: 70,
+    avail: 'Bugün müsait', availHot: true, level: 'ileri', wl: '3G-2M',
+    mate: 4.7, onTime: 94, forehand: 4, serve: 3, style: 'Baseline grinder',
+    hand: 'Sağ', court: 'Maslak Arena', verified: true, mutual: true,
+    bio: 'Rekabetçi ama dostane. Tie-break sevdalısı. Akşam seansları benden.',
+  },
+  {
+    id: 'can', name: 'Can Ö.', initials: 'CÖ', utr: 5.6, dist: 4.2, hue: 150,
+    avail: 'Yarın müsait', availHot: false, level: 'orta', wl: '3G-3M',
+    mate: 4.6, onTime: 90, forehand: 3, serve: 4, style: 'All-court',
+    hand: 'Sol', court: 'Ataşehir Kort', verified: false, mutual: false,
+    bio: 'Servis-vole denemeyi seviyorum. Hafta içi öğlenleri uygunum.',
+  },
+  {
+    id: 'burak', name: 'Burak T.', initials: 'BT', utr: 4.8, dist: 3.7, hue: 200,
+    avail: 'Hafta sonu', availHot: false, level: 'orta', wl: '2G-3M',
+    mate: 4.3, onTime: 88, forehand: 3, serve: 3, style: 'Serve & volley',
+    hand: 'Sağ', court: 'Kadıköy Spor', verified: false, mutual: true,
+    bio: 'Çift de oynarım. Antrenman partneri arıyorum, ciddiyim ama eğlenceli.',
+  },
+  {
+    id: 'zeynep', name: 'Zeynep K.', initials: 'ZK', utr: 4.2, dist: 1.9, hue: 320,
+    avail: 'Bugün müsait', availHot: true, level: 'baslangic', wl: '2G-1M',
+    mate: 4.4, onTime: 92, forehand: 3, serve: 2, style: 'Gelişen oyuncu',
+    hand: 'Sağ', court: 'Bağdat Cd. Kort', verified: false, mutual: false,
+    bio: '6 aydır oynuyorum, sabırlı bir partner harika olur. Bol ralli isterim.',
+  },
+  {
+    id: 'mert', name: 'Mert D.', initials: 'MD', utr: 8.0, dist: 5.0, hue: 18,
+    avail: 'Akşamları', availHot: false, level: 'ileri', wl: '5G-0M',
+    mate: 5.0, onTime: 98, forehand: 5, serve: 5, style: 'Tam saha baskı',
+    hand: 'Sağ', court: 'Levent Tenis Kulübü', verified: true, mutual: true,
+    bio: 'Eski ITF. Sert tempo, yüksek ritim. Sadece ciddi maç için yazın.',
+  },
+  {
+    id: 'deniz', name: 'Deniz Y.', initials: 'DY', utr: 3.5, dist: 0.8, hue: 250,
+    avail: 'Bugün müsait', availHot: true, level: 'baslangic', wl: '1G-1M',
+    mate: 4.5, onTime: 91, forehand: 2, serve: 2, style: 'Yeni başlıyor',
+    hand: 'Sol', court: 'Fenerbahçe Kort', verified: false, mutual: false,
+    bio: 'Tenise yeni başladım, çok hevesliyim. Birlikte öğreniriz!',
+  },
+];
+
+const cx = (...a) => a.filter(Boolean).join(' ');
+
+function Avatar({ p, size = 92 }) {
+  const fs = Math.round(size * 0.34);
+  return (
+    <div className="cm-avatar" style={{
+      width: size, height: size,
+      // duotone: accent base + per-player hue wash so they read distinct
+      background: `radial-gradient(120% 120% at 30% 20%, hsl(${p.hue} 70% 62%), var(--accent) 70%)`,
+    }}>
+      <span style={{ fontFamily: 'var(--display)', fontSize: fs, color: 'var(--accent-ink)', letterSpacing: '-.02em' }}>
+        {p.initials}
+      </span>
+    </div>
+  );
+}
+
+function Stars({ n, max = 5 }) {
+  return (
+    <div className="cm-stars" aria-label={`${n}/${max}`}>
+      {Array.from({ length: max }).map((_, i) => (
+        <svg key={i} viewBox="0 0 24 24" width="14" height="14"
+          style={{ opacity: i < n ? 1 : 0.18 }}>
+          <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.8 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z"
+            fill="var(--accent)" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+function StatTile({ label, value, children, accent }) {
+  return (
+    <div className="cm-stat">
+      <div className="cm-stat-label">{label}</div>
+      {children || <div className={cx('cm-stat-value', accent && 'is-accent')}>{value}</div>}
+    </div>
+  );
+}
+
+function Pill({ children, tone = 'default' }) {
+  return <span className={cx('cm-pill', `is-${tone}`)}>{children}</span>;
+}
+
+function MateScore({ value }) {
+  const v = typeof value === 'number' && !isNaN(value) ? value : 0;
+  return (
+    <div className="cm-mate">
+      <span className="cm-mate-label">MATE SCORE</span>
+      <span className="cm-mate-val">{v.toFixed(1)}<i>/5</i></span>
+    </div>
+  );
+}
+
+Object.assign(window, { CM_PLAYERS, CM_LEVELS, Avatar, Stars, StatTile, Pill, MateScore, cx });
+
+
+// ═══ courtmate-card.jsx ═══
+// courtmate-card.jsx — swipe card + draggable deck
+// Exposes: PlayerCard, SwipeDeck
+
+function PlayerCard({ p, dragX = 0, expanded = false, onToggle }) {
+  // LIKE / NOPE stamp intensity follows horizontal drag
+  const likeOp = Math.max(0, Math.min(1, dragX / 90));
+  const nopeOp = Math.max(0, Math.min(1, -dragX / 90));
+  return (
+    <div className={cx('cm-card', expanded && 'is-expanded')}>
+      {/* stamps */}
+      <div className="cm-stamp is-like" style={{ opacity: likeOp }}>EŞLEŞ</div>
+      <div className="cm-stamp is-nope" style={{ opacity: nopeOp }}>GEÇ</div>
+
+      <div className="cm-card-top">
+        <Avatar p={p} size={88} />
+        <div className="cm-card-id">
+          <div className="cm-name-row">
+            <h2 className="cm-name">{p.name}</h2>
+            {p.verified && (
+              <span className="cm-verified" title="Doğrulanmış">
+                <svg viewBox="0 0 24 24" width="13" height="13"><path d="M5 13l4 4L19 7" stroke="var(--accent-ink)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </span>
+            )}
+          </div>
+          <div className="cm-meta">UTR {p.utr != null ? p.utr.toFixed(1) : '—'} · {p.dist ? p.dist + 'KM' : '—'} · {p.hand || '—'}</div>
+          <div className="cm-avail">
+            <span className={cx('cm-dot', p.availHot && 'is-hot')} />
+            {p.avail}
+          </div>
+        </div>
+      </div>
+
+      <div className="cm-style-row">
+        <span className="cm-style-tag">{p.style}</span>
+        <span className="cm-level-tag">{p.level === 'baslangic' ? 'Başlangıç' : p.level === 'orta' ? 'Orta' : 'İleri'}</span>
+      </div>
+
+      <div className="cm-stat-grid">
+        <StatTile label="SON 5 MAÇ" value={p.wl} accent />
+        <StatTile label="ZAMANINDA" value={`%${p.onTime}`} accent />
+        <StatTile label="FOREHAND"><Stars n={p.forehand} /></StatTile>
+        <StatTile label="SERVİS"><Stars n={p.serve} /></StatTile>
+      </div>
+
+      {expanded && (
+        <div className="cm-bio">
+          <div className="cm-bio-label">OYUNCU NOTU</div>
+          <p>{p.bio}</p>
+          <div className="cm-bio-court">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke="var(--accent)" strokeWidth="1.8" fill="none"/><circle cx="12" cy="10" r="2.4" stroke="var(--accent)" strokeWidth="1.8" fill="none"/></svg>
+            Sık oynadığı kort · {p.court}
+          </div>
+        </div>
+      )}
+
+      <div className="cm-card-foot">
+        <MateScore value={p.mate} />
+        <button className="cm-expand" onClick={(e) => { e.stopPropagation(); onToggle && onToggle(); }}>
+          {expanded ? 'Kapat' : 'Detay'}
+          <svg viewBox="0 0 24 24" width="14" height="14" style={{ transform: expanded ? 'rotate(180deg)' : 'none' }}>
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SwipeDeck({ players, onResolve }) {
+  const [idx, setIdx] = React.useState(0);
+  const [drag, setDrag] = React.useState({ x: 0, y: 0, active: false });
+  const [flying, setFlying] = React.useState(null); // {dir} animating card out
+  const [expanded, setExpanded] = React.useState(false);
+  const start = React.useRef(null);
+
+  // reset when the filtered player set changes
+  React.useEffect(() => { setIdx(0); setExpanded(false); }, [players]);
+
+  const current = players[idx];
+  const next = players[idx + 1];
+
+  const finish = (dir) => {
+    if (!current || flying) return;
+    setFlying(dir);
+    const liked = dir === 'right';
+    setTimeout(() => {
+      onResolve && onResolve(current, liked);
+      setIdx((i) => i + 1);
+      setDrag({ x: 0, y: 0, active: false });
+      setExpanded(false);
+      setFlying(null);
+    }, 280);
+  };
+
+  const onDown = (e) => {
+    if (flying || expanded) return;
+    start.current = { x: e.clientX, y: e.clientY };
+    setDrag({ x: 0, y: 0, active: true });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e) => {
+    if (!start.current) return;
+    setDrag({ x: e.clientX - start.current.x, y: e.clientY - start.current.y, active: true });
+  };
+  const onUp = () => {
+    if (!start.current) return;
+    start.current = null;
+    if (drag.x > 105) finish('right');
+    else if (drag.x < -105) finish('left');
+    else setDrag({ x: 0, y: 0, active: false });
+  };
+
+  // transform for top card
+  const rot = drag.x * 0.045;
+  let tx = drag.x, ty = drag.y, tr = rot, transition = 'none';
+  if (flying) {
+    tx = flying === 'right' ? 700 : -700;
+    ty = drag.y + 40;
+    tr = flying === 'right' ? 22 : -22;
+    transition = 'transform .28s cubic-bezier(.4,0,.2,1)';
+  } else if (!drag.active) {
+    transition = 'transform .35s cubic-bezier(.34,1.4,.5,1)';
+  }
+
+  const actions = (
+    <div className="cm-actions">
+      <button className="cm-act is-rewind" disabled={idx === 0 || !!flying}
+        onClick={() => { setIdx((i) => Math.max(0, i - 1)); setExpanded(false); }} aria-label="Geri al">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M9 14L4 9l5-5M4 9h9a7 7 0 010 14h-3" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+      <button className="cm-act is-nope" disabled={!current || !!flying} onClick={() => finish('left')} aria-label="Geç">
+        <svg viewBox="0 0 24 24" width="30" height="30"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+      </button>
+      <button className="cm-act is-like" disabled={!current || !!flying} onClick={() => finish('right')} aria-label="Eşleş">
+        <svg viewBox="0 0 24 24" width="30" height="30"><path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+    </div>
+  );
+
+  if (!current) {
+    return (
+      <div className="cm-deck-wrap">
+        <div className="cm-deck">
+          <div className="cm-empty">
+            <div className="cm-empty-mark">GAME · SET</div>
+            <h3>Bugünlük bu kadar</h3>
+            <p>Bu filtrede yeni oyuncu kalmadı. Yarıçapı genişlet ya da seviyeyi değiştir.</p>
+            <button className="cm-reset" onClick={() => { setIdx(0); }}>Yeniden bak</button>
+          </div>
+        </div>
+        {actions}
+      </div>
+    );
+  }
+
+  return (
+    <div className="cm-deck-wrap">
+      <div className="cm-deck">
+        {next && !expanded && (
+          <div className="cm-card-slot is-behind">
+            <PlayerCard p={next} />
+          </div>
+        )}
+        <div
+          className="cm-card-slot is-front"
+          style={{ transform: `translate(${tx}px, ${ty}px) rotate(${tr}deg)`, transition, cursor: expanded ? 'default' : 'grab' }}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+        >
+          <PlayerCard p={current} dragX={flying === 'right' ? 120 : flying === 'left' ? -120 : drag.x}
+            expanded={expanded} onToggle={() => setExpanded((v) => !v)} />
+        </div>
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+Object.assign(window, { PlayerCard, SwipeDeck });
+
+
+// ═══ courtmate-onboard.jsx ═══
+// courtmate-onboard.jsx — registration/onboarding flow + profile screen
+// Exposes: SignupFlow, ProfileScreen, buildMe
+
+const STYLE_OPTS = ['Agresif baseline', 'Baseline grinder', 'All-court', 'Serve & volley', 'Defansif', 'Yeni başlıyor'];
+const HAND_OPTS = ['Sağ el', 'Sol el'];
+const AVAIL_OPTS = ['Sabahları', 'Öğlenleri', 'Akşamları', 'Hafta sonu'];
+
+function initialsOf(name) {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  const a = parts[0][0] || '';
+  const b = parts.length > 1 ? parts[parts.length - 1][0] : '';
+  return (a + b).toLocaleUpperCase('tr');
+}
+function hueFromName(s) {
+  let h = 7;
+  for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return h;
+}
+function buildMe(d) {
+  const lvl = CM_LEVELS.find((l) => l.id === d.level) || CM_LEVELS[0];
+  return {
+    id: 'me', isMe: true, verified: false,
+    name: d.name.trim(), initials: initialsOf(d.name), age: +d.age,
+    email: (d.email || '').trim(), password: d.password || '',
+    level: d.level, levelLabel: lvl.label, utrRange: lvl.utr,
+    style: d.style, hand: d.hand, court: (d.court || '').trim() || '—',
+    avail: d.avail, bio: (d.bio || '').trim(),
+    hue: hueFromName(d.name + d.style),
+  };
+}
+
+// ── Registration / onboarding ───────────────────────────
+function SignupFlow({ initial, editing, onComplete, onCancel, onSwitchToLogin, loading = false, error = null }) {
+  const { useState } = React;
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState(initial?.name || '');
+  const [age, setAge] = useState(initial?.age ? String(initial.age) : '');
+  const [email, setEmail] = useState(initial?.email || '');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [level, setLevel] = useState(initial?.level || '');
+  const [style, setStyle] = useState(initial?.style || '');
+  const [hand, setHand] = useState(initial?.hand || 'Sağ el');
+  const [court, setCourt] = useState(initial?.court && initial.court !== '—' ? initial.court : '');
+  const [avail, setAvail] = useState(initial?.avail || '');
+  const [bio, setBio] = useState(initial?.bio || '');
+
+  const STEPS = [
+    { k: 'KİMLİK', t: 'Kendini\ntanıt' },
+    { k: 'SEVİYE', t: 'Senin\nseviyen ne?' },
+    { k: 'OYUN PROFİLİ', t: 'Nasıl\noynuyorsun?' },
+    { k: 'HAKKINDA', t: 'Birkaç\nsöz et' },
+  ];
+  const valid = [
+    editing ? (name.trim().length >= 2 && +age >= 10 && +age <= 99) : (name.trim().length >= 2 && +age >= 10 && +age <= 99 && email.trim().includes('@') && password.length >= 6),
+    !!level,
+    !!style && !!hand,
+    !!avail,
+  ];
+  const last = step === STEPS.length - 1;
+  const go = () => {
+    if (!valid[step]) return;
+    if (last) onComplete(buildMe({ name, age, email, password, level, style, hand, court, avail, bio }));
+    else setStep((s) => s + 1);
+  };
+  const back = () => { if (step === 0) onCancel && onCancel(); else setStep((s) => s - 1); };
+
+  return (
+    <div className="cm-signup">
+      <div className="cm-su-top">
+        <button className="cm-su-back" onClick={back} aria-label="Geri">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div className="cm-su-prog">
+          {STEPS.map((s, i) => (
+            <span key={i} className={cx('cm-su-seg', i <= step && 'is-on')} />
+          ))}
+        </div>
+        <span className="cm-su-count">{step + 1}/{STEPS.length}</span>
+      </div>
+
+      <div className="cm-su-body">
+        <span className="cm-su-kicker">▶ {editing ? 'PROFİLİ DÜZENLE' : `ADIM ${step + 1}`} · {STEPS[step].k}</span>
+        <h1 className="cm-su-title">{STEPS[step].t}</h1>
+
+        {step === 0 && (
+          <div className="cm-su-fields">
+            <label className="cm-field">
+              <span className="cm-field-label">AD SOYAD</span>
+              <input className="cm-input" value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="Örn. Arda Yılmaz" autoComplete="off" />
+            </label>
+            <label className="cm-field">
+              <span className="cm-field-label">YAŞ</span>
+              <input className="cm-input" value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                placeholder="Örn. 27" inputMode="numeric" />
+            </label>
+            {!editing && (<>
+              <label className="cm-field">
+                <span className="cm-field-label">E-POSTA</span>
+                <input className="cm-input" value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ornek@email.com" type="email" autoComplete="email" />
+              </label>
+              <label className="cm-field">
+                <span className="cm-field-label">ŞİFRE <i>(en az 6 karakter)</i></span>
+                <div className="cm-input-wrap">
+                  <input className="cm-input" value={password} onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••" type={showPass ? 'text' : 'password'} autoComplete="new-password" />
+                  <button className="cm-input-eye" type="button" onClick={() => setShowPass(v => !v)}>
+                    {showPass ? '◎' : '●'}
+                  </button>
+                </div>
+              </label>
+            </>)}
+            <p className="cm-su-hint">Adın ve yaşın profilinde rakiplere görünür.</p>
+            {!editing && onSwitchToLogin && (
+              <button className="cm-su-login-link" type="button" onClick={onSwitchToLogin}>
+                Zaten hesabım var → Giriş yap
+              </button>
+            )}
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="cm-gate-list cm-su-levels">
+            {CM_LEVELS.map((l) => (
+              <button key={l.id} className={cx('cm-gate-opt', level === l.id && 'is-sel')} onClick={() => setLevel(l.id)}>
+                <div className="cm-gate-opt-main">
+                  <span className="cm-gate-opt-label">{l.label}</span>
+                  <span className="cm-gate-opt-desc">{l.desc}</span>
+                </div>
+                <span className="cm-gate-utr">UTR {l.utr}</span>
+                <span className={cx('cm-gate-check', level === l.id && 'is-sel')}>
+                  <svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 13l4 4L19 7" stroke="var(--accent-ink)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="cm-su-fields">
+            <div className="cm-field">
+              <span className="cm-field-label">OYUN STİLİN</span>
+              <div className="cm-chip-row">
+                {STYLE_OPTS.map((o) => (
+                  <button key={o} className={cx('cm-chip', style === o && 'is-sel')} onClick={() => setStyle(o)}>{o}</button>
+                ))}
+              </div>
+            </div>
+            <div className="cm-field">
+              <span className="cm-field-label">DOMİNANT EL</span>
+              <div className="cm-chip-row">
+                {HAND_OPTS.map((o) => (
+                  <button key={o} className={cx('cm-chip', hand === o && 'is-sel')} onClick={() => setHand(o)}>{o}</button>
+                ))}
+              </div>
+            </div>
+            <label className="cm-field">
+              <span className="cm-field-label">SIK OYNADIĞIN KORT <i>(opsiyonel)</i></span>
+              <input className="cm-input" value={court} onChange={(e) => setCourt(e.target.value)}
+                placeholder="Örn. Caddebostan Tenis" autoComplete="off" />
+            </label>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="cm-su-fields">
+            <div className="cm-field">
+              <span className="cm-field-label">NE ZAMAN MÜSAİTSİN</span>
+              <div className="cm-chip-row">
+                {AVAIL_OPTS.map((o) => (
+                  <button key={o} className={cx('cm-chip', avail === o && 'is-sel')} onClick={() => setAvail(o)}>{o}</button>
+                ))}
+              </div>
+            </div>
+            <label className="cm-field">
+              <span className="cm-field-label">KENDİNDEN BAHSET <i>(opsiyonel)</i></span>
+              <textarea className="cm-input cm-textarea" value={bio} maxLength={160}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Oyun tarzın, beklentilerin, maç sonrası kahve sevgin…" />
+              <span className="cm-su-counter">{bio.length}/160</span>
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="cm-su-foot">
+        {error && <div className="cm-su-error">{error}</div>}
+        <button className="cm-cta" disabled={!valid[step] || loading} onClick={go}>
+          {loading ? 'Lütfen bekle…' : (last ? (editing ? 'DEĞİŞİKLİKLERİ KAYDET' : 'HESABI OLUŞTUR') : 'DEVAM')}
+          {!loading && <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Profile (reflects the registered account) ───────────
+function ProfileScreen({ me, onEdit }) {
+  const lvlColor = { baslangic: '#34d399', orta: '#f5c044', ileri: '#ff7058' }[me.level] || 'var(--accent)';
+  return (
+    <div className="cm-profile">
+      <div className="cm-prof-hero">
+        <Avatar p={me} size={88} />
+        <div className="cm-prof-id">
+          <div className="cm-prof-name-row">
+            <h2 className="cm-prof-name">{me.name}</h2>
+            <span className="cm-prof-badge">YENİ</span>
+          </div>
+          <div className="cm-prof-meta">{me.age} yaş · {me.levelLabel} · {me.hand}</div>
+          <div className="cm-prof-court">
+            <svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke="var(--accent)" strokeWidth="1.8" fill="none"/><circle cx="12" cy="10" r="2.4" stroke="var(--accent)" strokeWidth="1.8" fill="none"/></svg>
+            {me.court}
+          </div>
+        </div>
+      </div>
+
+      <div className="cm-prof-tags">
+        <span className="cm-prof-level" style={{ '--lv': lvlColor }}>{me.levelLabel}</span>
+        <span className="cm-style-tag">{me.style}</span>
+      </div>
+
+      <div className="cm-stat-grid cm-prof-stats">
+        <StatTile label="SEVİYE" value={me.levelLabel} accent />
+        <StatTile label="UTR ARALIĞI" value={me.utrRange} accent />
+        <StatTile label="DOMİNANT EL" value={me.hand} />
+        <StatTile label="MÜSAİTLİK" value={me.avail} />
+      </div>
+
+      <div className="cm-prof-block">
+        <div className="cm-prof-block-label">DURUM</div>
+        <div className="cm-prof-newrow">
+          <div className="cm-prof-newval">YENİ<i>oyuncu</i></div>
+          <p>Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.</p>
+        </div>
+      </div>
+
+      {me.bio && (
+        <div className="cm-prof-block">
+          <div className="cm-prof-block-label">HAKKINDA</div>
+          <p className="cm-prof-bio">{me.bio}</p>
+        </div>
+      )}
+
+      <button className="cm-prof-edit" onClick={onEdit}>
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 20h4l10-10-4-4L4 16v4zM14 6l4 4" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        Profili düzenle
+      </button>
+    </div>
+  );
+}
+
+function LoginForm({ onLogin, onBack, onSwitchToSignup, loading = false, error = null }) {
+  const { useState } = React;
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const valid = email.trim().includes('@') && password.length >= 6;
+  return (
+    <div className="cm-signup">
+      <div className="cm-su-top">
+        <button className="cm-su-back" onClick={onBack} aria-label="Geri">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <div className="cm-su-prog"><span className="cm-su-seg is-on" style={{ flex: 'none', width: '100%' }} /></div>
+        <span className="cm-su-count">GİRİŞ</span>
+      </div>
+      <div className="cm-su-body">
+        <span className="cm-su-kicker">▶ HESABINA GİR</span>
+        <h1 className="cm-su-title">{'Tekrar\nhoş geldin'}</h1>
+        <div className="cm-su-fields">
+          <label className="cm-field">
+            <span className="cm-field-label">E-POSTA</span>
+            <input className="cm-input" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="ornek@email.com" type="email" autoComplete="email" />
+          </label>
+          <label className="cm-field">
+            <span className="cm-field-label">ŞİFRE</span>
+            <div className="cm-input-wrap">
+              <input className="cm-input" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••" type={showPass ? 'text' : 'password'} autoComplete="current-password" />
+              <button className="cm-input-eye" type="button" onClick={() => setShowPass(v => !v)}>
+                {showPass ? '◎' : '●'}
+              </button>
+            </div>
+          </label>
+          <button className="cm-su-login-link" type="button" onClick={onSwitchToSignup}>
+            Hesabın yok mu? → Kaydol
+          </button>
+        </div>
+      </div>
+      <div className="cm-su-foot">
+        {error && <div className="cm-su-error">{error}</div>}
+        <button className="cm-cta" disabled={!valid || loading} onClick={() => onLogin(email, password)}>
+          {loading ? 'Giriş yapılıyor…' : 'GİRİŞ YAP'}
+          {!loading && <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmailConfirmation({ email, onGoToLogin }) {
+  return (
+    <div className="cm-signup">
+      <div className="cm-su-top" style={{ justifyContent: 'center' }}>
+        <span className="cm-su-kicker">▶ HESAP OLUŞTURULDU</span>
+      </div>
+      <div className="cm-su-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', paddingTop: 48 }}>
+        <div style={{ fontSize: 52, marginBottom: 8 }}>✉</div>
+        <h1 className="cm-su-title" style={{ textAlign: 'center', fontSize: 34 }}>{'E-postanı\nDoğrula'}</h1>
+        <p className="cm-su-hint" style={{ textAlign: 'center', maxWidth: 260 }}>
+          <b>{email}</b> adresine bir bağlantı gönderdik. Bağlantıya tıklayıp hesabını aktifleştirdikten sonra giriş yap.
+        </p>
+      </div>
+      <div className="cm-su-foot">
+        <button className="cm-cta" onClick={onGoToLogin}>
+          GİRİŞ YAP
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { SignupFlow, ProfileScreen, buildMe, LoginForm, EmailConfirmation });
+
+
+// ═══ courtmate-chat.jsx ═══
+// courtmate-chat.jsx — requests/matches roster, chat list + thread, accept toast
+// Exposes: MatchesScreen, ChatList, ChatThread, MatchToast, openerFor, replyFor
+
+function openerFor(p) {
+  const m = {
+    'Agresif baseline': 'Selam! Sert tempo severim, bu hafta bir maç yapalım mı?',
+    'Baseline grinder': 'Merhaba! Uzun ralliye varım, hangi kort sana uyar?',
+    'All-court': 'Selam! Her zemine açığım, bir antrenman maçı ayarlayalım mı?',
+    'Serve & volley': 'Hey! Servis-vole çalışıyorum, rakip olur musun?',
+    'Tam saha baskı': 'Selam! Yüksek tempo isteyen biri lazımdı, hazırsan yazışalım.',
+    'Gelişen oyuncu': 'Merhaba! Bol ralli yapmak isterim, müsait olunca haber ver.',
+    'Yeni başlıyor': 'Selam! Yeni başlıyorum, sabırlı bir maç olur mu?',
+  };
+  return m[p.style] || 'Selam! Eşleştiğimize sevindim, bir maç ayarlayalım mı?';
+}
+function replyFor() {
+  const r = [
+    'Olur, kortu ben ayarlayayım mı?',
+    'Süper! Hangi gün sana uyar?',
+    'Harika, ben akşamları daha müsaitim.',
+    'Tamamdır, görüşmek üzere!',
+  ];
+  return r[Math.floor(Math.random() * r.length)];
+}
+
+const CalIcon = (
+  <svg viewBox="0 0 24 24" width="16" height="16"><rect x="4" y="5" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="1.8" fill="none"/><path d="M4 9h16M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+);
+
+// ── Eşleşmeler: gelen istekler + bekleyen + eşleşmeler ──────
+function MatchesScreen({ incoming, pending, matches, onSchedule, onChat, onAccept }) {
+  if (!(incoming && incoming.length) && !pending.length && !matches.length) {
+    return (
+      <div className="cm-stub">
+        <div className="cm-stub-mark">◎</div>
+        <h3>Henüz eşleşme yok</h3>
+        <p>Keşfet'te beğendiğin oyunculara istek gönder. Karşı taraf kabul edince burada eşleşmen oluşur.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="cm-mlist">
+      {!!(incoming && incoming.length) && (
+        <>
+          <div className="cm-mlist-head">SANA GELEN İSTEKLER · {incoming.length}</div>
+          {incoming.map((it) => (
+            <div key={it.player.id} className="cm-mrow is-incoming">
+              <Avatar p={it.player} size={48} />
+              <div className="cm-mrow-main">
+                <div className="cm-mrow-name">{it.player.name}</div>
+                <div className="cm-mrow-sub">{it.player.levelLabel || it.player.level} · seninle eşleşmek istiyor</div>
+              </div>
+              <button className="cm-mrow-cta cm-accept" onClick={() => onAccept(it.player.id, it.matchId)}>Kabul et</button>
+            </div>
+          ))}
+        </>
+      )}
+      {!!pending.length && (
+        <>
+          <div className="cm-mlist-head">BEKLEYEN İSTEKLER · {pending.length}</div>
+          {pending.map((p) => (
+            <div key={p.id} className="cm-mrow is-pending">
+              <Avatar p={p} size={48} />
+              <div className="cm-mrow-main">
+                <div className="cm-mrow-name">{p.name}</div>
+                <div className="cm-mrow-sub cm-mrow-wait"><i className="cm-wait-dot" />İstek gönderildi · yanıt bekleniyor</div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+      {!!matches.length && (
+        <>
+          <div className="cm-mlist-head">EŞLEŞMELERİN · {matches.length}</div>
+          {matches.map((p) => (
+            <div key={p.id} className="cm-mrow">
+              <Avatar p={p} size={48} />
+              <div className="cm-mrow-main">
+                <div className="cm-mrow-name">{p.name}</div>
+                <div className="cm-mrow-sub">UTR {p.utr != null ? p.utr.toFixed(1) : '—'} · {p.court || '—'}</div>
+              </div>
+              <div className="cm-mrow-acts">
+                <button className="cm-mrow-icon" onClick={() => onSchedule(p)} title="Maç ayarla" aria-label="Maç ayarla">{CalIcon}</button>
+                <button className="cm-mrow-cta" onClick={() => onChat(p.id)}>Sohbet</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Sohbet: thread list ──────────────────────────────────
+function ChatList({ order, threads, players, onOpen }) {
+  if (!order.length) {
+    return (
+      <div className="cm-stub">
+        <div className="cm-stub-mark">◌</div>
+        <h3>Sohbet yok</h3>
+        <p>Bir eşleşmen olduğunda sohbet burada açılır. Eşleştiğin oyuncuyla maçı buradan konuşursun.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="cm-mlist">
+      <div className="cm-mlist-head">SOHBETLER</div>
+      {order.map((id) => {
+        const p = players.find((x) => x.id === id);
+        const th = threads[id];
+        const last = th.messages[th.messages.length - 1];
+        return (
+          <button key={id} className="cm-mrow" onClick={() => onOpen(id)}>
+            <Avatar p={p} size={48} />
+            <div className="cm-mrow-main">
+              <div className="cm-mrow-name">{p.name}</div>
+              <div className="cm-chat-prev">{last.from === 'me' ? 'Sen: ' : ''}{last.text}</div>
+            </div>
+            {th.unread > 0 && <span className="cm-unread">{th.unread}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Sohbet: single thread ────────────────────────────────
+function ChatThread({ player, thread, onBack, onSend, onSchedule }) {
+  const { useState, useRef, useEffect } = React;
+  const [text, setText] = useState('');
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread.messages.length]);
+  const submit = () => {
+    const v = text.trim();
+    if (!v) return;
+    onSend(player.id, v);
+    setText('');
+  };
+  return (
+    <div className="cm-chat">
+      <div className="cm-chat-head">
+        <button className="cm-chat-back" onClick={onBack} aria-label="Geri">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <Avatar p={player} size={40} />
+        <div className="cm-chat-id">
+          <div className="cm-chat-name">{player.name}</div>
+          <div className="cm-chat-status"><i className="cm-on-dot" />Çevrimiçi</div>
+        </div>
+        <button className="cm-chat-sched" onClick={() => onSchedule(player)}>{CalIcon}Maç</button>
+      </div>
+      <div className="cm-chat-body" ref={bodyRef}>
+        <div className="cm-chat-day">EŞLEŞTİNİZ · {player.court}</div>
+        {thread.messages.map((m, i) => (
+          <div key={i} className={cx('cm-bubble', m.from === 'me' ? 'is-me' : 'is-them')}>{m.text}</div>
+        ))}
+      </div>
+      <div className="cm-chat-input">
+        <input value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          placeholder="Mesaj yaz…" />
+        <button className="cm-chat-send" onClick={submit} disabled={!text.trim()} aria-label="Gönder">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 12l16-8-6 16-3-6-7-2z" stroke="var(--accent-ink)" strokeWidth="2" fill="none" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Accept toast (delayed acceptance) ────────────────────
+function MatchToast({ player, onOpen, onClose }) {
+  return (
+    <button className="cm-toast" onClick={onOpen}>
+      <Avatar p={player} size={40} />
+      <div className="cm-toast-main">
+        <div className="cm-toast-title">{player.name} eşleşmeyi kabul etti</div>
+        <div className="cm-toast-sub">Sohbeti açmak için dokun</div>
+      </div>
+      <span className="cm-toast-x" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Kapat">×</span>
+    </button>
+  );
+}
+
+Object.assign(window, { MatchesScreen, ChatList, ChatThread, MatchToast, openerFor, replyFor });
+
+
+// ═══ courtmate-app.jsx ═══
+// courtmate-app.jsx — screens, overlays, navigation, tweaks → mounts the app
+
+const { useState, useRef, useEffect } = React;
+
+// ── Global hata yakalayıcı ────────────────────────────────
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(e) { return { err: e }; }
+  render() {
+    if (this.state.err) return (
+      <div style={{ position:'fixed', inset:0, background:'#0d0d0d', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, padding:24, color:'#fff', fontFamily:'monospace', fontSize:13 }}>
+        <div style={{ fontSize:36 }}>⚠️</div>
+        <b style={{ color:'#dcfc32' }}>Bir hata oluştu</b>
+        <p style={{ color:'#888', textAlign:'center', maxWidth:280, lineHeight:1.5 }}>{this.state.err.message}</p>
+        <button onClick={() => { this.setState({ err: null }); window.location.reload(); }}
+          style={{ marginTop:8, background:'#dcfc32', color:'#000', border:'none', borderRadius:12, padding:'12px 24px', fontFamily:'monospace', fontWeight:700, cursor:'pointer' }}>
+          YENİDEN BAŞLAT
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
+const LEVEL_FILTERS = [
+  { id: 'hepsi', label: 'Hepsi' },
+  { id: 'baslangic', label: 'Başlangıç' },
+  { id: 'orta', label: 'Orta' },
+  { id: 'ileri', label: 'İleri' },
+];
+
+// ── Top bar ──────────────────────────────────────────────
+function TopBar({ live, onTheme, theme }) {
+  return (
+    <div className="cm-topbar">
+      <div className="cm-brand">
+        <span className="cm-brand-mark">▚</span>
+        <span className="cm-brand-name">COURT<b>MATE</b></span>
+      </div>
+      <div className="cm-topbar-right">
+        <span className="cm-live"><i className="cm-live-dot" />{live} OYUNCU · 2.5KM</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Level filter (segmented) ─────────────────────────────
+function LevelFilter({ value, onChange }) {
+  return (
+    <div className="cm-filter">
+      {LEVEL_FILTERS.map((f) => (
+        <button key={f.id} className={cx('cm-filter-btn', value === f.id && 'is-active')}
+          onClick={() => onChange(f.id)}>{f.label}</button>
+      ))}
+    </div>
+  );
+}
+
+// ── Bottom tab bar ───────────────────────────────────────
+function TabBar({ active, onTab, badges = {} }) {
+  const tabs = [
+    { id: 'discover', label: 'Keşfet', icon: (a) => <path d="M5 5l14 14M19 5L5 19" stroke={a} strokeWidth="2" strokeLinecap="round"/> },
+    { id: 'matches', label: 'Eşleşmeler', icon: (a) => <path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" stroke={a} strokeWidth="2" fill="none"/> },
+    { id: 'chat', label: 'Sohbet', icon: (a) => <path d="M4 5h16v11H9l-5 4z" stroke={a} strokeWidth="2" fill="none" strokeLinejoin="round"/> },
+    { id: 'profile', label: 'Profil', icon: (a) => <g><circle cx="12" cy="8" r="4" stroke={a} strokeWidth="2" fill="none"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6" stroke={a} strokeWidth="2" fill="none"/></g> },
+  ];
+  return (
+    <div className="cm-tabbar">
+      {tabs.map((t) => {
+        const on = active === t.id;
+        return (
+          <button key={t.id} className={cx('cm-tab', on && 'is-on')} onClick={() => onTab(t.id)}>
+            <span className="cm-tab-ico">
+              <svg viewBox="0 0 24 24" width="24" height="24">{t.icon(on ? 'var(--accent)' : 'var(--muted)')}</svg>
+              {badges[t.id] > 0 && <i className="cm-badge">{badges[t.id]}</i>}
+            </span>
+            <span className="cm-tab-label">{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Level gate (entry) ───────────────────────────────────
+function LevelGate({ onPick }) {
+  const [sel, setSel] = useState(null);
+  return (
+    <div className="cm-gate">
+      <div className="cm-gate-head">
+        <span className="cm-gate-kicker">▶ BAŞLAMADAN ÖNCE</span>
+        <h1 className="cm-gate-title">SENİN<br/><em>SEVİYEN</em><br/>NE?</h1>
+        <p className="cm-gate-sub">Seni doğru rakiplerle eşleştirelim. İstediğin zaman değiştirebilirsin.</p>
+      </div>
+      <div className="cm-gate-list">
+        {CM_LEVELS.map((l) => (
+          <button key={l.id} className={cx('cm-gate-opt', sel === l.id && 'is-sel')} onClick={() => setSel(l.id)}>
+            <div className="cm-gate-opt-main">
+              <span className="cm-gate-opt-label">{l.label}</span>
+              <span className="cm-gate-opt-desc">{l.desc}</span>
+            </div>
+            <span className="cm-gate-utr">UTR {l.utr}</span>
+            <span className={cx('cm-gate-check', sel === l.id && 'is-sel')}>
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M5 13l4 4L19 7" stroke="var(--accent-ink)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </span>
+          </button>
+        ))}
+      </div>
+      <button className="cm-cta" disabled={!sel} onClick={() => onPick(sel)}>
+        OYUNCULARI GÖSTER
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+    </div>
+  );
+}
+
+// ── Match overlay ────────────────────────────────────────
+function MatchOverlay({ player, onSchedule, onKeep }) {
+  return (
+    <div className="cm-match">
+      <div className="cm-match-glow" />
+      <div className="cm-match-inner">
+        <span className="cm-match-kicker">EŞLEŞME · MATCH POINT</span>
+        <h1 className="cm-match-title">EŞLEŞ<em>TİNİZ!</em></h1>
+        <div className="cm-match-avatars">
+          <div className="cm-match-av cm-match-you"><span>SEN</span></div>
+          <div className="cm-match-vs">×</div>
+          <div className="cm-match-av"><Avatar p={player} size={96} /></div>
+        </div>
+        <p className="cm-match-line">Sen ve <b>{player.name}</b> birbirinizi seçtiniz. Korta çıkma zamanı.</p>
+        <div className="cm-match-actions">
+          <button className="cm-cta" onClick={() => onSchedule(player)}>
+            MAÇ AYARLA
+            <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </button>
+          <button className="cm-ghost" onClick={onKeep}>Aramaya devam et</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Schedule sheet ───────────────────────────────────────
+const COURTS = [
+  { id: 'c1', name: 'Caddebostan Tenis', dist: '1.1 km', surf: 'Sert kort' },
+  { id: 'c2', name: 'Kalamış Açık Kort', dist: '2.0 km', surf: 'Toprak' },
+  { id: 'c3', name: 'Fenerbahçe Spor', dist: '0.8 km', surf: 'Sert kort' },
+];
+const DAYS = ['Bugün', 'Yarın', 'Cmt', 'Paz'];
+const TIMES = ['08:00', '10:00', '13:00', '17:00', '19:00', '21:00'];
+
+function ScheduleSheet({ player, onClose, onSend }) {
+  const [court, setCourt] = useState('c1');
+  const [day, setDay] = useState('Yarın');
+  const [time, setTime] = useState('19:00');
+  return (
+    <div className="cm-sheet-scrim" onClick={onClose}>
+      <div className="cm-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="cm-sheet-grip" />
+        <div className="cm-sheet-head">
+          <Avatar p={player} size={44} />
+          <div>
+            <div className="cm-sheet-title">Maç teklifi gönder</div>
+            <div className="cm-sheet-sub">{player.name} · UTR {player.utr != null ? player.utr.toFixed(1) : '—'}</div>
+          </div>
+        </div>
+
+        <div className="cm-sheet-label">KORT</div>
+        <div className="cm-court-list">
+          {COURTS.map((c) => (
+            <button key={c.id} className={cx('cm-court', court === c.id && 'is-sel')} onClick={() => setCourt(c.id)}>
+              <div>
+                <div className="cm-court-name">{c.name}</div>
+                <div className="cm-court-meta">{c.dist} · {c.surf}</div>
+              </div>
+              <span className={cx('cm-radio', court === c.id && 'is-sel')} />
+            </button>
+          ))}
+        </div>
+
+        <div className="cm-sheet-label">GÜN</div>
+        <div className="cm-chip-row">
+          {DAYS.map((d) => (
+            <button key={d} className={cx('cm-chip', day === d && 'is-sel')} onClick={() => setDay(d)}>{d}</button>
+          ))}
+        </div>
+
+        <div className="cm-sheet-label">SAAT</div>
+        <div className="cm-chip-row">
+          {TIMES.map((t) => (
+            <button key={t} className={cx('cm-chip', time === t && 'is-sel')} onClick={() => setTime(t)}>{t}</button>
+          ))}
+        </div>
+
+        <button className="cm-cta cm-sheet-cta" onClick={() => onSend({ court: COURTS.find(c => c.id === court), day, time })}>
+          TEKLİFİ GÖNDER
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 12l16-8-6 16-3-6-7-2z" stroke="var(--accent-ink)" strokeWidth="2" fill="none" strokeLinejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Sent confirmation ────────────────────────────────────
+function SentToast({ data, player, onDone }) {
+  return (
+    <div className="cm-match">
+      <div className="cm-match-inner">
+        <div className="cm-sent-check">
+          <svg viewBox="0 0 24 24" width="40" height="40"><path d="M5 13l4 4L19 7" stroke="var(--accent-ink)" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </div>
+        <h1 className="cm-match-title" style={{ fontSize: 38 }}>TEKLİF<br/><em>GÖNDERİLDİ</em></h1>
+        <div className="cm-sent-recap">
+          <div><span>OYUNCU</span><b>{player.name}</b></div>
+          <div><span>KORT</span><b>{data.court.name}</b></div>
+          <div><span>NE ZAMAN</span><b>{data.day} · {data.time}</b></div>
+        </div>
+        <p className="cm-match-line">{player.name} onayladığında sohbet açılacak.</p>
+        <button className="cm-cta" onClick={onDone}>KEŞFETMEYE DÖN</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Simple placeholder tab screen ────────────────────────
+function StubScreen({ title, note }) {
+  return (
+    <div className="cm-stub">
+      <div className="cm-stub-mark">◴</div>
+      <h3>{title}</h3>
+      <p>{note}</p>
+    </div>
+  );
+}
+
+// ── Root app ─────────────────────────────────────────────
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "charged",
+  "accent": "#dcfc32",
+  "startLevel": "ileri",
+  "showMateScore": true
+}/*EDITMODE-END*/;
+
+const ME_KEY = 'cm_me_v1';
+const loadMe = () => { try { return JSON.parse(localStorage.getItem(ME_KEY)) || null; } catch (e) { return null; } };
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [me, setMe] = useState(loadMe);
+  const [editing, setEditing] = useState(false);
+  const [stage, setStage] = useState(() => loadMe() ? 'app' : 'signup');
+  const [tab, setTab] = useState('discover');
+  const [filter, setFilter] = useState(() => { const m = loadMe(); return m ? m.level : 'hepsi'; });
+  const [match, setMatch] = useState(null);     // matched player (full overlay)
+  const [schedule, setSchedule] = useState(null); // player being scheduled
+  const [sent, setSent] = useState(null);        // {data, player}
+  const [matches, setMatches] = useState([]);    // accepted match ids
+  const [pending, setPending] = useState([]);    // sent request ids awaiting accept
+  const [threads, setThreads] = useState({});    // id -> { messages:[{from,text}], unread }
+  const [chatOrder, setChatOrder] = useState([]);// most-recent-first thread ids
+  const [activeChat, setActiveChat] = useState(null); // open thread id
+  const [toast, setToast] = useState(null);
+  const [supaLoading, setSupaLoading] = useState(false);
+  const [supaError, setSupaError]     = useState(null);
+  const [pendingEmail, setPendingEmail] = useState('');
+  const [realPlayers, setRealPlayers] = useState(null);
+  const [incoming, setIncoming] = useState([]); // bana gelen istekler [{partnerId, matchId}]
+  const matchIdsRef = React.useRef({});         // partnerId -> matchId
+  const timersRef = React.useRef([]);
+
+  // clear all pending timers on unmount
+  useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
+
+  // Supabase oturumu kontrol et
+  useEffect(() => {
+    const PENDING_KEY = 'cm_pending_v1';
+    const getPending = () => { try { return JSON.parse(localStorage.getItem(PENDING_KEY)); } catch(e) { return null; } };
+    (async () => {
+      try {
+        const { session } = await cmGetSession();
+        if (!session) return;
+        const pending = getPending();
+        if (pending) { try { await cmSyncProfile(session.user.id, pending); localStorage.removeItem(PENDING_KEY); } catch(e) {} }
+        const profile = await cmGetProfile(session.user.id);
+        if (profile) {
+          const meData = profileToMe(profile, session.user.email);
+          setMe(meData); setFilter(meData.level);
+          try { localStorage.setItem(ME_KEY, JSON.stringify(meData)); } catch(e) {}
+          setStage('app');
+        }
+      } catch(err) { console.warn('Supabase oturum kontrolü:', err.message); }
+    })();
+  }, []);
+
+  // Keşfet: gerçek oyuncuları Supabase'den çek
+  useEffect(() => {
+    if (stage !== 'app') return;
+    (async () => {
+      try {
+        let uid = me && me.id && me.id !== 'me' ? me.id : null;
+        if (!uid) {
+          const { session } = await cmGetSession();
+          uid = session ? session.user.id : '00000000-0000-0000-0000-000000000000';
+        }
+        const players = await cmGetDiscoverPlayers(uid);
+        setRealPlayers(players.length > 0 ? players : null);
+      } catch(err) { console.warn('Oyuncular alınamadı:', err.message); }
+    })();
+  }, [stage, me && me.id]);
+
+  // Eşleşmeleri + mesajları yükle (ve realtime ile canlı tut)
+  const myId = me && me.id && me.id !== 'me' ? me.id : null;
+  const myIdRef = React.useRef(myId);
+  React.useEffect(() => { myIdRef.current = myId; }, [myId]);
+  const reloadMatches = React.useCallback(async () => {
+    if (!myId) return;
+    try {
+      const rows = await cmGetMatches(myId);
+      const acc = [], pend = [], inc = [];
+      const idMap = {};
+      for (const r of rows) {
+        const partnerId = r.sender_id === myId ? r.receiver_id : r.sender_id;
+        if (r.status === 'accepted') { acc.push(partnerId); idMap[partnerId] = r.id; }
+        else if (r.status === 'pending') {
+          if (r.sender_id === myId) pend.push(partnerId);
+          else inc.push({ partnerId, matchId: r.id });
+        }
+      }
+      matchIdsRef.current = idMap;
+      setMatches(acc); setPending(pend); setIncoming(inc);
+      // accepted eşleşmelerin mesajlarını yükle
+      const threadsObj = {};
+      for (const pid of acc) {
+        try {
+          const msgs = await cmGetMessages(idMap[pid]);
+          threadsObj[pid] = {
+            matchId: idMap[pid],
+            messages: msgs.map(m => ({ from: m.sender_id === myId ? 'me' : 'them', text: m.text, id: m.id })),
+            unread: msgs.filter(m => m.sender_id !== myId && !m.read_at).length,
+          };
+        } catch(e) {}
+      }
+      setThreads(prev => {
+        const merged = { ...prev };
+        for (const [pid, serverTh] of Object.entries(threadsObj)) {
+          const existing = prev[pid];
+          if (!existing) { merged[pid] = serverTh; continue; }
+          const serverIds = new Set(serverTh.messages.map(m => m.id));
+          const optimistic = existing.messages.filter(m => String(m.id || '').startsWith('tmp-') && !serverIds.has(m.id));
+          merged[pid] = { ...serverTh, messages: [...serverTh.messages, ...optimistic] };
+        }
+        return merged;
+      });
+      setChatOrder(prev => {
+        const keep = prev.filter(id => acc.includes(id));
+        const add  = acc.filter(id => !prev.includes(id));
+        return [...keep, ...add];
+      });
+    } catch(e) { console.warn('Eşleşmeler yüklenemedi:', e.message); }
+  }, [myId]);
+
+  useEffect(() => {
+    if (stage !== 'app' || !myId) return;
+    reloadMatches();
+    const chMatches = cmSubscribeAllMatches(() => { reloadMatches(); });
+    const chMsgs = cmSubscribeAllMessages((payload) => {
+      const m = payload.new;
+      if (!m) return;
+      // hangi partner'a ait?
+      const idMap = matchIdsRef.current;
+      const partnerId = Object.keys(idMap).find(pid => idMap[pid] === m.match_id);
+      if (!partnerId) { reloadMatches(); return; } // yeni eşleşme olabilir
+      if (m.sender_id === myIdRef.current) return; // kendi mesajım (zaten ekli)
+      setThreads(th => {
+        const t0 = th[partnerId] || { matchId: m.match_id, messages: [], unread: 0 };
+        if (t0.messages.some(x => x.id === m.id)) return th; // duplicate
+        const isActive = activeChatRef.current === partnerId;
+        return { ...th, [partnerId]: {
+          ...t0,
+          messages: [...t0.messages, { from: 'them', text: m.text, id: m.id }],
+          unread: isActive ? 0 : (t0.unread || 0) + 1,
+        }};
+      });
+      setChatOrder(o => [partnerId, ...o.filter(x => x !== partnerId)]);
+      if (activeChatRef.current === partnerId) { try { cmMarkRead(m.match_id, myId); } catch(e) {} }
+    });
+    return () => {
+      try { cm_db.removeChannel(chMatches); } catch(e) {}
+      try { cm_db.removeChannel(chMsgs); } catch(e) {}
+    };
+  }, [stage, myId, reloadMatches]);
+
+  // aktif sohbeti ref'te tut (realtime callback için)
+  const activeChatRef = React.useRef(null);
+  useEffect(() => { activeChatRef.current = activeChat; }, [activeChat]);
+
+  // apply theme + accent to root
+  useEffect(() => {
+    const root = document.getElementById('cm-root');
+    if (!root) return;
+    root.dataset.theme = t.theme;
+    root.dataset.mate = t.showMateScore ? 'on' : 'off';
+    root.style.setProperty('--accent', t.accent);
+  }, [t.theme, t.accent, t.showMateScore]);
+
+  const completeSignup = async (account) => {
+    setSupaLoading(true); setSupaError(null);
+    try {
+      if (editing) {
+        const { session } = await cmGetSession();
+        if (session) {
+          const updated = await cmUpdateProfile(session.user.id, {
+            name: account.name, age: Number(account.age), level: account.level,
+            style: account.style || null, hand: account.hand || 'Sağ el',
+            court: account.court && account.court !== '—' ? account.court : null,
+            avail: account.avail || null, bio: account.bio || null,
+          });
+          const meData = profileToMe(updated, session.user.email);
+          setMe(meData); try { localStorage.setItem(ME_KEY, JSON.stringify(meData)); } catch(e) {}
+        } else {
+          setMe(account); try { localStorage.setItem(ME_KEY, JSON.stringify(account)); } catch(e) {}
+        }
+        setEditing(false); setStage('app'); setTab('profile'); return;
+      }
+      const result = await cmSignUp(account.email, account.password, account);
+      if (result.needsConfirmation) {
+        try { localStorage.setItem('cm_pending_v1', JSON.stringify(account)); } catch(e) {}
+        setPendingEmail(account.email); setStage('confirm-email');
+      } else {
+        const profile = await cmGetProfile(result.user.id);
+        const meData = profile ? profileToMe(profile, account.email) : { ...account, id: result.user.id };
+        setMe(meData); try { localStorage.setItem(ME_KEY, JSON.stringify(meData)); } catch(e) {}
+        setFilter(account.level); setEditing(false); setStage('app');
+      }
+    } catch(err) {
+      const msg = err.message || 'Bir hata oluştu';
+      setSupaError(msg.includes('already registered') ? 'Bu e-posta zaten kayıtlı — giriş yap.' : msg);
+    } finally { setSupaLoading(false); }
+  };
+
+  const handleLogin = async (email, password) => {
+    setSupaLoading(true); setSupaError(null);
+    try {
+      const { user } = await cmSignIn(email, password);
+      const pending = (() => { try { return JSON.parse(localStorage.getItem('cm_pending_v1')); } catch(e) { return null; } })();
+      if (pending) { try { await cmSyncProfile(user.id, pending); localStorage.removeItem('cm_pending_v1'); } catch(e) {} }
+      const profile = await cmGetProfile(user.id);
+      if (profile) {
+        const meData = profileToMe(profile, user.email);
+        setMe(meData); setFilter(meData.level);
+        try { localStorage.setItem(ME_KEY, JSON.stringify(meData)); } catch(e) {}
+        setStage('app');
+      } else { setStage('signup'); }
+    } catch(err) {
+      const msg = err.message || 'Giriş başarısız';
+      setSupaError(msg.includes('Invalid') ? 'E-posta veya şifre hatalı' : msg);
+    } finally { setSupaLoading(false); }
+  };
+
+  const resetAll = async () => {
+    try { await cmSignOut(); } catch(e) {}
+    try { localStorage.removeItem(ME_KEY); localStorage.removeItem('cm_pending_v1'); } catch(e) {}
+    timersRef.current.forEach(clearTimeout); timersRef.current = [];
+    setMe(null); setEditing(false); setStage('signup'); setTab('discover');
+    setMatch(null); setSchedule(null); setSent(null);
+    setMatches([]); setPending([]); setThreads({}); setChatOrder([]); setActiveChat(null); setToast(null);
+    setSupaLoading(false); setSupaError(null); setPendingEmail(''); setRealPlayers(null);
+  };
+
+  const playerPool = realPlayers || CM_PLAYERS;
+  const filtered = React.useMemo(
+    () => (filter === 'hepsi' ? playerPool : playerPool.filter((p) => p.level === filter)),
+    [filter, playerPool]
+  );
+
+  // create a chat thread seeded locally (gerçek mesajlar Supabase'den gelir)
+  const addThread = (player) => {
+    setThreads((th) => (th[player.id] ? th : { ...th, [player.id]: { matchId: matchIdsRef.current[player.id], messages: [], unread: 0 } }));
+    setChatOrder((o) => [player.id, ...o.filter((x) => x !== player.id)]);
+  };
+
+  // bana gelen bir isteği kabul et → gerçek eşleşme
+  const acceptIncoming = async (partnerId, matchId) => {
+    try {
+      await cmAcceptMatch(matchId);
+      matchIdsRef.current[partnerId] = matchId;
+      setIncoming(inc => inc.filter(i => i.partnerId !== partnerId));
+      const player = playerPool.find(p => p.id === partnerId);
+      setMatches(m => m.includes(partnerId) ? m : [...m, partnerId]);
+      addThread({ id: partnerId });
+      if (player) setMatch(player);
+      reloadMatches();
+    } catch(e) { console.warn('Kabul edilemedi:', e.message); }
+  };
+
+  // swipe right / tap ✓ on Keşfet → gerçek istek gönder
+  const resolve = async (player, liked) => {
+    if (!liked) return;
+    if (!myId) { console.warn('Giriş gerekli'); return; }
+    if (matches.includes(player.id) || pending.includes(player.id)) return;
+    // bana zaten istek göndermişse → direkt kabul et (karşılıklı eşleşme)
+    const inc = incoming.find(i => i.partnerId === player.id);
+    if (inc) { acceptIncoming(player.id, inc.matchId); return; }
+    // yeni istek gönder
+    setPending((p) => [...p, player.id]);
+    try {
+      await cmSendMatchRequest(myId, player.id);
+    } catch(e) {
+      // zaten istek varsa veya hata → pending'den çıkar
+      if (!String(e.message).includes('duplicate')) {
+        setPending((p) => p.filter(id => id !== player.id));
+        console.warn('İstek gönderilemedi:', e.message);
+      }
+    }
+  };
+
+  // open a chat thread + clear its unread (Supabase'de okundu işaretle)
+  const openChat = (id) => {
+    setActiveChat(id);
+    setTab('chat');
+    setThreads((th) => (th[id] ? { ...th, [id]: { ...th[id], unread: 0 } } : th));
+    const mid = matchIdsRef.current[id];
+    if (mid && myId) { try { cmMarkRead(mid, myId); } catch(e) {} }
+  };
+
+  // gerçek mesaj gönder (otomatik cevap YOK)
+  const sendMessage = async (id, text) => {
+    const mid = matchIdsRef.current[id];
+    if (!mid || !myId) { console.warn('Eşleşme bulunamadı'); return; }
+    // optimistic: hemen ekrana koy
+    const tempId = 'tmp-' + Date.now();
+    setThreads((th) => ({ ...th, [id]: { ...(th[id] || { matchId: mid, unread: 0, messages: [] }), messages: [...((th[id] && th[id].messages) || []), { from: 'me', text, id: tempId }] } }));
+    setChatOrder((o) => [id, ...o.filter((x) => x !== id)]);
+    try {
+      const saved = await cmSendMsg(mid, myId, text);
+      // tempId'yi gerçek id ile değiştir
+      setThreads((th) => {
+        const t0 = th[id]; if (!t0) return th;
+        return { ...th, [id]: { ...t0, messages: t0.messages.map(m => m.id === tempId ? { ...m, id: saved.id } : m) } };
+      });
+    } catch(e) { console.warn('Mesaj gönderilemedi:', e.message); }
+  };
+
+  const pendingPlayers  = pending.map((id) => playerPool.find((p) => p.id === id)).filter(Boolean);
+  const matchPlayers    = matches.map((id) => playerPool.find((p) => p.id === id)).filter(Boolean);
+  const incomingItems   = incoming.map(i => ({ player: playerPool.find(p => p.id === i.partnerId), matchId: i.matchId })).filter(i => i.player);
+  const chatUnread = Object.values(threads).reduce((n, th) => n + (th.unread || 0), 0);
+  const activePlayer = activeChat ? playerPool.find((p) => p.id === activeChat) : null;
+
+  return (
+    <div id="cm-root" className="cm-root" data-theme={t.theme}>
+      {stage === 'signup' && (
+        <SignupFlow initial={editing ? me : null} editing={editing}
+          loading={supaLoading} error={supaError}
+          onComplete={completeSignup}
+          onSwitchToLogin={() => { setSupaError(null); setStage('login'); }}
+          onCancel={editing ? () => { setEditing(false); setStage('app'); setTab('profile'); } : null} />
+      )}
+      {stage === 'login' && (
+        <LoginForm onLogin={handleLogin} loading={supaLoading} error={supaError}
+          onBack={() => { setSupaError(null); setStage('signup'); }}
+          onSwitchToSignup={() => { setSupaError(null); setStage('signup'); }} />
+      )}
+      {stage === 'confirm-email' && (
+        <EmailConfirmation email={pendingEmail}
+          onGoToLogin={() => { setSupaError(null); setStage('login'); }} />
+      )}
+
+      {stage === 'app' && (
+        <div className="cm-app">
+          <TopBar live={filtered.length} />
+          {tab === 'discover' && (
+            <div className="cm-discover">
+              <LevelFilter value={filter} onChange={setFilter} />
+              <SwipeDeck players={filtered} onResolve={resolve} />
+            </div>
+          )}
+          {tab === 'matches' && (
+            <MatchesScreen incoming={incomingItems} pending={pendingPlayers} matches={matchPlayers}
+              onSchedule={(p) => setSchedule(p)} onChat={openChat} onAccept={acceptIncoming} />
+          )}
+          {tab === 'chat' && (
+            activeChat && activePlayer && threads[activeChat]
+              ? <ChatThread player={activePlayer} thread={threads[activeChat]}
+                  onBack={() => setActiveChat(null)} onSend={sendMessage}
+                  onSchedule={(p) => setSchedule(p)} />
+              : <ChatList order={chatOrder} threads={threads} players={playerPool} onOpen={openChat} />
+          )}
+          {tab === 'profile' && me && (
+            <ProfileScreen me={me} onEdit={() => { setEditing(true); setStage('signup'); }} />
+          )}
+          <TabBar active={tab} onTab={(x) => { if (x !== 'chat') setActiveChat(null); setTab(x); }}
+            badges={{ matches: pending.length, chat: chatUnread }} />
+        </div>
+      )}
+
+      {toast && <MatchToast player={toast} onOpen={() => { const id = toast.id; setToast(null); openChat(id); }} onClose={() => setToast(null)} />}
+
+      {match && <MatchOverlay player={match} onSchedule={(p) => { setMatch(null); setSchedule(p); }} onKeep={() => setMatch(null)} />}
+      {schedule && <ScheduleSheet player={schedule} onClose={() => setSchedule(null)} onSend={(data) => { const p = schedule; setSchedule(null); setSent({ data, player: p }); }} />}
+      {sent && <SentToast data={sent.data} player={sent.player} onDone={() => { setSent(null); setTab('discover'); }} />}
+
+      <TweaksPanel>
+        <TweakSection label="Tema" />
+        <TweakRadio label="Görsel yön" value={t.theme} options={[{ value: 'charged', label: 'Charged' }, { value: 'premium', label: 'Premium' }]}
+          onChange={(v) => setTweak('theme', v)} />
+        <TweakColor label="Accent" value={t.accent}
+          options={['#dcfc32', '#c9b26b', '#5ad6a0', '#ff8a3d', '#7aa2ff']}
+          onChange={(v) => setTweak('accent', v)} />
+        <TweakSection label="Akış" />
+        <TweakToggle label="Mate Score göster" value={t.showMateScore} onChange={(v) => setTweak('showMateScore', v)} />
+        <TweakButton label="Akışı sıfırla" onClick={resetAll}>
+          Hesabı sil, baştan başla
+        </TweakButton>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <ErrorBoundary><App /></ErrorBoundary>
+);
+
+
+  </script>
+
+  <script>
+    // scale device to fit viewport
+    function fit() {
+      const stage = document.getElementById('stage');
+      const s = Math.min(1, (window.innerHeight - 32) / 874, (window.innerWidth - 24) / 402);
+      stage.style.transform = `scale(${s})`;
+    }
+    window.addEventListener('resize', fit); fit();
+  </script>
+</body>
+</html>
