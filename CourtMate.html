@@ -2340,13 +2340,14 @@ function ChatList({ order, threads, players, onOpen }) {
       {order.map((id) => {
         const p = players.find((x) => x.id === id);
         const th = threads[id];
+        if (!p || !th) return null;
         const last = th.messages[th.messages.length - 1];
         return (
           <button key={id} className="cm-mrow" onClick={() => onOpen(id)}>
             <Avatar p={p} size={48} />
             <div className="cm-mrow-main">
               <div className="cm-mrow-name">{p.name}</div>
-              <div className="cm-chat-prev">{last.from === 'me' ? 'Sen: ' : ''}{last.text}</div>
+              <div className="cm-chat-prev">{last ? (last.from === 'me' ? 'Sen: ' : '') + last.text : 'Mesaj yok…'}</div>
             </div>
             {th.unread > 0 && <span className="cm-unread">{th.unread}</span>}
           </button>
@@ -2361,10 +2362,11 @@ function ChatThread({ player, thread, onBack, onSend, onSchedule, onBlock, onRep
   const { useState, useRef, useEffect } = React;
   const [text, setText] = useState('');
   const bodyRef = useRef(null);
+  const messages = thread?.messages || [];
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread.messages.length]);
+  }, [messages.length]);
   const submit = () => {
     const v = text.trim();
     if (!v) return;
@@ -2387,7 +2389,7 @@ function ChatThread({ player, thread, onBack, onSend, onSchedule, onBlock, onRep
       </div>
       <div className="cm-chat-body" ref={bodyRef}>
         <div className="cm-chat-day">EŞLEŞTİNİZ · {player.court}</div>
-        {thread.messages.map((m, i) => (
+        {messages.map((m, i) => (
           <div key={i} className={cx('cm-bubble', m.from === 'me' ? 'is-me' : 'is-them')}>{m.text}</div>
         ))}
       </div>
