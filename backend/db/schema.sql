@@ -272,6 +272,42 @@ ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 
 
 -- ──────────────────────────────────────────────────────────
+-- 8. STORAGE — Avatar bucket
+-- Supabase Dashboard → Storage → New Bucket: "avatars", Public: TRUE
+-- Sonra bu SQL'i çalıştır:
+-- ──────────────────────────────────────────────────────────
+
+-- Kendi klasörüne yükleyebilirsin (path: {userId}/avatar.*)
+CREATE POLICY "avatars_insert_own"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (string_to_array(name, '/'))[1]);
+
+-- Herkes okuyabilir (public profil fotoğrafı)
+CREATE POLICY "avatars_select_public"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'avatars');
+
+-- Sadece kendi dosyasını güncelleyebilirsin
+CREATE POLICY "avatars_update_own"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'avatars' AND auth.uid()::text = (string_to_array(name, '/'))[1]);
+
+-- Sadece kendi dosyasını silebilirsin
+CREATE POLICY "avatars_delete_own"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'avatars' AND auth.uid()::text = (string_to_array(name, '/'))[1]);
+
+-- ──────────────────────────────────────────────────────────
+-- 9. Hesap silme RPC (isteğe bağlı, cmDeleteAccount'ta kullanılıyor)
+-- ──────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION delete_own_account()
+RETURNS void AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ──────────────────────────────────────────────────────────
 -- KURULUM TAMAMLANDI
 -- Şimdi Supabase Dashboard → Authentication → Email Templates
 -- bölümünden doğrulama e-posta şablonunu özelleştirebilirsin.

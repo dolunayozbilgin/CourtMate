@@ -59,6 +59,7 @@ function profileToMe(profile, email) {
     avail:      profile.avail  || '',
     bio:        profile.bio    || '',
     hue:        _hue((profile.name || '') + (profile.style || '')),
+    avatar_url: profile.avatar_url || null,
   };
 }
 
@@ -270,10 +271,35 @@ async function cmGetDiscoverPlayers(userId) {
   return (profiles || []).map(p => profileToPlayer(p, sentTo, receivedFrom));
 }
 
+async function cmUploadAvatar(userId, file) {
+  if (file.size > 5 * 1024 * 1024) throw new Error('Fotoğraf en fazla 5 MB olabilir');
+  if (!file.type.startsWith('image/')) throw new Error('Sadece resim dosyası yükleyebilirsin');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${userId}/avatar.${ext}`;
+  const { error: upErr } = await cm_db.storage.from('avatars').upload(path, file, {
+    upsert: true, contentType: file.type,
+  });
+  if (upErr) throw upErr;
+  const { data } = cm_db.storage.from('avatars').getPublicUrl(path);
+  const publicUrl = data.publicUrl + '?t=' + Date.now();
+  await cmUpdateProfile(userId, { avatar_url: publicUrl });
+  return publicUrl;
+}
+
+async function cmDeleteAccount(userId) {
+  await cm_db.storage.from('avatars').remove([`${userId}/avatar.jpg`, `${userId}/avatar.png`, `${userId}/avatar.jpeg`, `${userId}/avatar.webp`]);
+  const { error } = await cm_db.rpc('delete_own_account');
+  if (error) {
+    await cm_db.from('profiles').delete().eq('id', userId);
+    await cm_db.auth.signOut();
+  }
+}
+
 Object.assign(window, {
   cm_db, profileToMe, profileToPlayer,
   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
   cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
+  cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
 });
