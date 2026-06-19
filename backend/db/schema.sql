@@ -312,7 +312,31 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ──────────────────────────────────────────────────────────
--- 10. GPS KOLONLARI (var olan DB'ye uygulamak için)
+-- 10. ENGELLEME & ŞİKAYET
+-- ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS blocks (
+  blocker_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  blocked_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (blocker_id, blocked_id)
+);
+ALTER TABLE blocks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "blocks_select_own" ON blocks FOR SELECT USING (auth.uid() = blocker_id);
+CREATE POLICY "blocks_insert_own" ON blocks FOR INSERT WITH CHECK (auth.uid() = blocker_id);
+CREATE POLICY "blocks_delete_own" ON blocks FOR DELETE USING (auth.uid() = blocker_id);
+
+CREATE TABLE IF NOT EXISTS reports (
+  id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reporter_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  reported_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  reason     TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "reports_insert_own" ON reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+
+-- ──────────────────────────────────────────────────────────
+-- 11. GPS KOLONLARI (var olan DB'ye uygulamak için)
 -- Yeni kurulumda profiles tablosu zaten lat/lng içeriyor.
 -- Mevcut bir DB'ye eklemek için:
 -- ──────────────────────────────────────────────────────────

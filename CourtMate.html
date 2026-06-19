@@ -415,6 +415,24 @@
   .cm-mrow-wait { display: flex; align-items: center; gap: 7px; color: var(--faint); }
   .cm-wait-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: cm-pulse 1.4s ease-in-out infinite; }
 
+  /* ════════════════ ENGELLE / ŞİKAYET ════════════════ */
+  .cm-action-wrap { position: relative; }
+  .cm-action-menu { position: absolute; right: 0; top: calc(100% + 5px); z-index: 200;
+    background: var(--card2); border: 1px solid var(--line); border-radius: 14px; padding: 5px;
+    min-width: 155px; box-shadow: 0 10px 32px rgba(0,0,0,.45); }
+  .cm-action-menu button { display: block; width: 100%; text-align: left;
+    padding: 10px 13px; font-family: var(--mono); font-size: 12px; letter-spacing: .04em;
+    background: none; border: none; color: var(--text); cursor: pointer; border-radius: 9px; transition: .1s; }
+  .cm-action-menu button:hover { background: var(--line); }
+  .cm-action-menu button.is-danger { color: var(--nope); }
+  .cm-report-opts { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+  .cm-report-opt { display: flex; align-items: center; gap: 11px; padding: 12px 14px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 13px; cursor: pointer;
+    font-size: 14px; text-align: left; transition: .15s; }
+  .cm-report-opt.is-sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+  .cm-report-opt-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); flex-shrink: 0; transition: .15s; }
+  .cm-report-opt.is-sel .cm-report-opt-dot { border-color: var(--accent); background: var(--accent); }
+
   /* ════════════════ CHAT ════════════════ */
   .cm-chat-prev { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 210px; }
   .cm-unread { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--accent-ink);
@@ -509,6 +527,7 @@ if (!window.supabase) {
     from: () => ({ select: () => ({ neq: () => ({ data: [], error: null }), eq: () => ({ maybeSingle: async () => ({ data: null, error: null }), data: [], error: null }), or: async () => ({ data: [], error: null }) }), insert: () => ({ select: () => ({ single: async () => ({ data: null, error: new Error('Çevrimdışı') }) }) }), update: () => ({ eq: () => ({ select: () => ({ single: async () => ({ data: null, error: new Error('Çevrimdışı') }) }) }) }), upsert: async () => ({ error: null }) }),
     channel: () => ({ on: function() { return this; }, subscribe: () => {} }),
     storage: { from: () => ({ upload: async () => ({ error: new Error('Çevrimdışı') }), getPublicUrl: () => ({ data: { publicUrl: '' } }), remove: async () => ({}) }) },
+    rpc: async () => ({ error: new Error('Çevrimdışı') }),
   }) };
 }
 
@@ -774,6 +793,24 @@ function profileToPlayer(p, sentToIds, receivedFromIds) {
   };
 }
 
+// ── Engelle / Şikayet ──────────────────────────────────────
+
+async function cmBlockUser(blockerId, blockedId) {
+  const { error } = await cm_db.from('blocks').insert({ blocker_id: blockerId, blocked_id: blockedId });
+  if (error && !error.message.includes('duplicate')) throw error;
+}
+
+async function cmReportUser(reporterId, reportedId, reason) {
+  const { error } = await cm_db.from('reports').insert({ reporter_id: reporterId, reported_id: reportedId, reason });
+  if (error) throw error;
+}
+
+async function cmGetBlockedIds(userId) {
+  const { data, error } = await cm_db.from('blocks').select('blocked_id').eq('blocker_id', userId);
+  if (error) throw error;
+  return (data || []).map(r => r.blocked_id);
+}
+
 // ── Konum kaydet ───────────────────────────────────────────
 
 async function cmSaveLocation(userId, lat, lng) {
@@ -825,6 +862,7 @@ Object.assign(window, {
   cm_db, profileToMe, profileToPlayer,
   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
   cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
+  cmBlockUser, cmReportUser, cmGetBlockedIds,
   cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
@@ -2115,7 +2153,80 @@ const CalIcon = (
 );
 
 // ── Eşleşmeler: gelen istekler + bekleyen + eşleşmeler ──────
-function MatchesScreen({ incoming, pending, matches, onSchedule, onChat, onAccept }) {
+// ── Engelle/Şikayet menüsü ───────────────────────────────
+function BlockReportMenu({ onBlock, onReport }) {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    document.addEventListener('click', close, { once: true });
+    return () => document.removeEventListener('click', close);
+  }, [open]);
+  return (
+    <div className="cm-action-wrap">
+      <button className="cm-mrow-icon" onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }} aria-label="Seçenekler">
+        <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg>
+      </button>
+      {open && (
+        <div className="cm-action-menu" onClick={e => e.stopPropagation()}>
+          <button onClick={() => { setOpen(false); onReport(); }}>Şikayet et</button>
+          <button className="is-danger" onClick={() => { setOpen(false); onBlock(); }}>Engelle</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Şikayet bottom sheet ─────────────────────────────────
+const REPORT_REASONS = ['Uygunsuz içerik', 'Sahte profil', 'Taciz / rahatsız edici', 'Diğer'];
+
+function ReportSheet({ player, onClose, onSubmit }) {
+  const [reason, setReason] = React.useState(null);
+  const [sent, setSent] = React.useState(false);
+  if (sent) return (
+    <div className="cm-sheet-scrim" onClick={onClose}>
+      <div className="cm-sheet" onClick={e => e.stopPropagation()}>
+        <div className="cm-sheet-grip" />
+        <div className="cm-sheet-head">
+          <div>
+            <div className="cm-sheet-title">Şikayet Gönderildi</div>
+            <div className="cm-sheet-sub">Bildiriminiz incelemeye alındı. Teşekkürler.</div>
+          </div>
+        </div>
+        <button className="cm-prof-edit" style={{ marginTop: 24 }} onClick={onClose}>Tamam</button>
+      </div>
+    </div>
+  );
+  return (
+    <div className="cm-sheet-scrim" onClick={onClose}>
+      <div className="cm-sheet" onClick={e => e.stopPropagation()}>
+        <div className="cm-sheet-grip" />
+        <div className="cm-sheet-head">
+          <Avatar p={player} size={44} />
+          <div>
+            <div className="cm-sheet-title">{player.name}</div>
+            <div className="cm-sheet-sub">Neden şikayet ediyorsun?</div>
+          </div>
+        </div>
+        <div className="cm-report-opts">
+          {REPORT_REASONS.map(r => (
+            <button key={r} className={cx('cm-report-opt', reason === r && 'is-sel')} onClick={() => setReason(r)}>
+              <span className="cm-report-opt-dot" />
+              {r}
+            </button>
+          ))}
+        </div>
+        <button className="cm-cta" disabled={!reason} onClick={() => { onSubmit(reason); setSent(true); }}>
+          Gönder
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M5 12h14M13 6l6 6-6 6" stroke="var(--accent-ink)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        </button>
+        <button className="cm-ghost" onClick={onClose}>Vazgeç</button>
+      </div>
+    </div>
+  );
+}
+
+function MatchesScreen({ incoming, pending, matches, onSchedule, onChat, onAccept, onBlock, onReport }) {
   if (!(incoming && incoming.length) && !pending.length && !matches.length) {
     return (
       <div className="cm-stub">
@@ -2137,7 +2248,10 @@ function MatchesScreen({ incoming, pending, matches, onSchedule, onChat, onAccep
                 <div className="cm-mrow-name">{it.player.name}</div>
                 <div className="cm-mrow-sub">{it.player.levelLabel || it.player.level} · seninle eşleşmek istiyor</div>
               </div>
-              <button className="cm-mrow-cta cm-accept" onClick={() => onAccept(it.player.id, it.matchId)}>Kabul et</button>
+              <div className="cm-mrow-acts">
+                <button className="cm-mrow-cta cm-accept" onClick={() => onAccept(it.player.id, it.matchId)}>Kabul et</button>
+                <BlockReportMenu onBlock={() => onBlock(it.player)} onReport={() => onReport(it.player)} />
+              </div>
             </div>
           ))}
         </>
@@ -2169,6 +2283,7 @@ function MatchesScreen({ incoming, pending, matches, onSchedule, onChat, onAccep
               <div className="cm-mrow-acts">
                 <button className="cm-mrow-icon" onClick={() => onSchedule(p)} title="Maç ayarla" aria-label="Maç ayarla">{CalIcon}</button>
                 <button className="cm-mrow-cta" onClick={() => onChat(p.id)}>Sohbet</button>
+                <BlockReportMenu onBlock={() => onBlock(p)} onReport={() => onReport(p)} />
               </div>
             </div>
           ))}
@@ -2212,7 +2327,7 @@ function ChatList({ order, threads, players, onOpen }) {
 }
 
 // ── Sohbet: single thread ────────────────────────────────
-function ChatThread({ player, thread, onBack, onSend, onSchedule }) {
+function ChatThread({ player, thread, onBack, onSend, onSchedule, onBlock, onReport }) {
   const { useState, useRef, useEffect } = React;
   const [text, setText] = useState('');
   const bodyRef = useRef(null);
@@ -2238,6 +2353,7 @@ function ChatThread({ player, thread, onBack, onSend, onSchedule }) {
           <div className="cm-chat-status"><i className="cm-on-dot" />Çevrimiçi</div>
         </div>
         <button className="cm-chat-sched" onClick={() => onSchedule(player)}>{CalIcon}Maç</button>
+        <BlockReportMenu onBlock={() => onBlock(player)} onReport={() => onReport(player)} />
       </div>
       <div className="cm-chat-body" ref={bodyRef}>
         <div className="cm-chat-day">EŞLEŞTİNİZ · {player.court}</div>
@@ -2555,6 +2671,8 @@ function App() {
   const [filter, setFilter] = useState(() => { const m = loadMe(); return m ? m.level : 'hepsi'; });
   const [distFilter, setDistFilter] = useState('hepsi');
   const [myCoords, setMyCoords] = useState(null);
+  const [blockedIds, setBlockedIds] = useState(new Set());
+  const [reportTarget, setReportTarget] = useState(null);
   const [match, setMatch] = useState(null);     // matched player (full overlay)
   const [schedule, setSchedule] = useState(null); // player being scheduled
   const [sent, setSent] = useState(null);        // {data, player}
@@ -2614,6 +2732,31 @@ function App() {
 
   // Eşleşmeleri + mesajları yükle (ve realtime ile canlı tut)
   const myId = me && me.id && me.id !== 'me' ? me.id : null;
+
+  // Engellenmiş kullanıcıları yükle
+  useEffect(() => {
+    if (!myId) return;
+    cmGetBlockedIds(myId).then(ids => setBlockedIds(new Set(ids))).catch(() => {});
+  }, [myId]);
+
+  const blockPlayer = async (player) => {
+    if (!myId) return;
+    try {
+      await cmBlockUser(myId, player.id);
+      setBlockedIds(prev => new Set([...prev, player.id]));
+      setMatches(m => m.filter(id => id !== player.id));
+      setIncoming(inc => inc.filter(i => i.partnerId !== player.id));
+      setPending(p => p.filter(id => id !== player.id));
+      setThreads(th => { const n = { ...th }; delete n[player.id]; return n; });
+      setChatOrder(o => o.filter(id => id !== player.id));
+      if (activeChat === player.id) setActiveChat(null);
+    } catch(e) { console.warn('Engelleme başarısız:', e.message); }
+  };
+
+  const reportPlayer = async (player, reason) => {
+    if (!myId) return;
+    try { await cmReportUser(myId, player.id, reason); } catch(e) { console.warn('Şikayet başarısız:', e.message); }
+  };
 
   // GPS konum al — izin verilirse profile kaydet
   useEffect(() => {
@@ -2783,9 +2926,10 @@ function App() {
     setMatches([]); setPending([]); setThreads({}); setChatOrder([]); setActiveChat(null); setToast(null);
     setSupaLoading(false); setSupaError(null); setPendingEmail(''); setRealPlayers(null);
     setMyCoords(null); setDistFilter('hepsi');
+    setBlockedIds(new Set()); setReportTarget(null);
   };
 
-  const playerPool = realPlayers || CM_PLAYERS;
+  const playerPool = (realPlayers || CM_PLAYERS).filter(p => !blockedIds.has(p.id));
 
   const playerPoolWithDist = React.useMemo(() => {
     if (!myCoords) return playerPool;
@@ -2922,13 +3066,15 @@ function App() {
           )}
           {tab === 'matches' && (
             <MatchesScreen incoming={incomingItems} pending={pendingPlayers} matches={matchPlayers}
-              onSchedule={(p) => setSchedule(p)} onChat={openChat} onAccept={acceptIncoming} />
+              onSchedule={(p) => setSchedule(p)} onChat={openChat} onAccept={acceptIncoming}
+              onBlock={blockPlayer} onReport={(p) => setReportTarget(p)} />
           )}
           {tab === 'chat' && (
             activeChat && activePlayer && threads[activeChat]
               ? <ChatThread player={activePlayer} thread={threads[activeChat]}
                   onBack={() => setActiveChat(null)} onSend={sendMessage}
-                  onSchedule={(p) => setSchedule(p)} />
+                  onSchedule={(p) => setSchedule(p)}
+                  onBlock={blockPlayer} onReport={(p) => setReportTarget(p)} />
               : <ChatList order={chatOrder} threads={threads} players={playerPool} onOpen={openChat} />
           )}
           {tab === 'profile' && me && (
@@ -2952,6 +3098,8 @@ function App() {
       )}
 
       {toast && <MatchToast player={toast} onOpen={() => { const id = toast.id; setToast(null); openChat(id); }} onClose={() => setToast(null)} />}
+      {reportTarget && <ReportSheet player={reportTarget} onClose={() => setReportTarget(null)}
+        onSubmit={(reason) => reportPlayer(reportTarget, reason)} />}
 
       {match && <MatchOverlay player={match} onSchedule={(p) => { setMatch(null); setSchedule(p); }} onKeep={() => setMatch(null)} />}
       {schedule && <ScheduleSheet player={schedule} onClose={() => setSchedule(null)} onSend={(data) => { const p = schedule; setSchedule(null); setSent({ data, player: p }); }} />}

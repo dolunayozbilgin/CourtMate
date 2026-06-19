@@ -275,6 +275,22 @@ async function cmGetDiscoverPlayers(userId) {
   return (profiles || []).map(p => profileToPlayer(p, sentTo, receivedFrom));
 }
 
+async function cmBlockUser(blockerId, blockedId) {
+  const { error } = await cm_db.from('blocks').insert({ blocker_id: blockerId, blocked_id: blockedId });
+  if (error && !error.message.includes('duplicate')) throw error;
+}
+
+async function cmReportUser(reporterId, reportedId, reason) {
+  const { error } = await cm_db.from('reports').insert({ reporter_id: reporterId, reported_id: reportedId, reason });
+  if (error) throw error;
+}
+
+async function cmGetBlockedIds(userId) {
+  const { data, error } = await cm_db.from('blocks').select('blocked_id').eq('blocker_id', userId);
+  if (error) throw error;
+  return (data || []).map(r => r.blocked_id);
+}
+
 async function cmSaveLocation(userId, lat, lng) {
   await cmUpdateProfile(userId, { lat, lng });
 }
@@ -307,6 +323,7 @@ Object.assign(window, {
   cm_db, profileToMe, profileToPlayer,
   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
   cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
+  cmBlockUser, cmReportUser, cmGetBlockedIds,
   cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
