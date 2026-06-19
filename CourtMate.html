@@ -527,6 +527,12 @@ function _hue(s) {
   for (const c of String(s || '')) h = (h * 31 + c.charCodeAt(0)) % 360;
   return h;
 }
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
 
 // DB profile satırını uygulama içi `me` nesnesine dönüştür
 function profileToMe(profile, email) {
@@ -549,6 +555,8 @@ function profileToMe(profile, email) {
     bio:        profile.bio    || '',
     hue:        _hue((profile.name || '') + (profile.style || '')),
     avatar_url: profile.avatar_url || null,
+    lat:        profile.lat  || null,
+    lng:        profile.lng  || null,
   };
 }
 
@@ -751,7 +759,9 @@ function profileToPlayer(p, sentToIds, receivedFromIds) {
     age:      p.age,
     level:    p.level,
     utr:      _utrFromProfile(p),
-    dist:     p.location ? 'Yakın' : '—',
+    lat:      p.lat  || null,
+    lng:      p.lng  || null,
+    dist:     null,
     avail:    p.avail   || 'Esnek',
     court:    p.court   || 'Belirtilmemiş',
     mutual:   (receivedFromIds || new Set()).has(p.id) && !(sentToIds || new Set()).has(p.id),
@@ -762,6 +772,12 @@ function profileToPlayer(p, sentToIds, receivedFromIds) {
     verified: false,
     isReal:   true,
   };
+}
+
+// ── Konum kaydet ───────────────────────────────────────────
+
+async function cmSaveLocation(userId, lat, lng) {
+  await cmUpdateProfile(userId, { lat, lng });
 }
 
 // ── Avatar yükleme ─────────────────────────────────────────
@@ -809,7 +825,7 @@ Object.assign(window, {
   cm_db, profileToMe, profileToPlayer,
   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
   cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
-  cmUploadAvatar, cmDeleteAccount,
+  cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
   cmSubscribeAllMessages, cmSubscribeAllMatches,
@@ -1427,6 +1443,13 @@ const CM_PLAYERS = [
 
 const cx = (...a) => a.filter(Boolean).join(' ');
 
+function _haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.asin(Math.sqrt(a));
+}
+
 function Avatar({ p, size = 92 }) {
   const fs = Math.round(size * 0.34);
   if (p.avatar_url) {
@@ -1514,7 +1537,7 @@ function PlayerCard({ p, dragX = 0, expanded = false, onToggle }) {
               </span>
             )}
           </div>
-          <div className="cm-meta">UTR {p.utr != null ? p.utr.toFixed(1) : '—'} · {p.dist ? p.dist + 'KM' : '—'} · {p.hand || '—'}</div>
+          <div className="cm-meta">UTR {p.utr != null ? p.utr.toFixed(1) : '—'} · {p.dist != null ? p.dist.toFixed(1) + ' km' : '—'} · {p.hand || '—'}</div>
           <div className="cm-avail">
             <span className={cx('cm-dot', p.availHot && 'is-hot')} />
             {p.avail}
@@ -2283,8 +2306,15 @@ const LEVEL_FILTERS = [
   { id: 'ileri', label: 'İleri' },
 ];
 
+const DIST_FILTERS = [
+  { id: 'hepsi', label: 'Mesafe' },
+  { id: 5,  label: '5 km' },
+  { id: 10, label: '10 km' },
+  { id: 25, label: '25 km' },
+];
+
 // ── Top bar ──────────────────────────────────────────────
-function TopBar({ live, onTheme, theme }) {
+function TopBar({ live, distFilter }) {
   return (
     <div className="cm-topbar">
       <div className="cm-brand">
@@ -2292,7 +2322,10 @@ function TopBar({ live, onTheme, theme }) {
         <span className="cm-brand-name">COURT<b>MATE</b></span>
       </div>
       <div className="cm-topbar-right">
-        <span className="cm-live"><i className="cm-live-dot" />{live} OYUNCU · 2.5KM</span>
+        <span className="cm-live">
+          <i className="cm-live-dot" />
+          {live} OYUNCU{distFilter && distFilter !== 'hepsi' ? ` · ${distFilter}KM` : ''}
+        </span>
       </div>
     </div>
   );
@@ -2306,6 +2339,21 @@ function LevelFilter({ value, onChange }) {
         <button key={f.id} className={cx('cm-filter-btn', value === f.id && 'is-active')}
           onClick={() => onChange(f.id)}>{f.label}</button>
       ))}
+    </div>
+  );
+}
+
+// ── Distance filter ──────────────────────────────────────
+function DistFilter({ value, onChange, hasCoords }) {
+  return (
+    <div className="cm-filter" style={{ paddingTop: 0 }}>
+      {DIST_FILTERS.map((f) => (
+        <button key={f.id} className={cx('cm-filter-btn', value === f.id && 'is-active')}
+          onClick={() => onChange(f.id)}>{f.label}</button>
+      ))}
+      {!hasCoords && value !== 'hepsi' && (
+        <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center', fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>KONUM İZNİ VER</span>
+      )}
     </div>
   );
 }
@@ -2505,6 +2553,8 @@ function App() {
   const [stage, setStage] = useState(() => loadMe() ? 'app' : 'signup');
   const [tab, setTab] = useState('discover');
   const [filter, setFilter] = useState(() => { const m = loadMe(); return m ? m.level : 'hepsi'; });
+  const [distFilter, setDistFilter] = useState('hepsi');
+  const [myCoords, setMyCoords] = useState(null);
   const [match, setMatch] = useState(null);     // matched player (full overlay)
   const [schedule, setSchedule] = useState(null); // player being scheduled
   const [sent, setSent] = useState(null);        // {data, player}
@@ -2564,6 +2614,19 @@ function App() {
 
   // Eşleşmeleri + mesajları yükle (ve realtime ile canlı tut)
   const myId = me && me.id && me.id !== 'me' ? me.id : null;
+
+  // GPS konum al — izin verilirse profile kaydet
+  useEffect(() => {
+    if (!myId || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const { latitude: lat, longitude: lng } = coords;
+        setMyCoords({ lat, lng });
+        try { await cmSaveLocation(myId, lat, lng); } catch(e) {}
+      },
+      () => {}  // izin verilmezse sessizce geç
+    );
+  }, [myId]);
   const myIdRef = React.useRef(myId);
   React.useEffect(() => { myIdRef.current = myId; }, [myId]);
   const reloadMatches = React.useCallback(async () => {
@@ -2719,13 +2782,28 @@ function App() {
     setMatch(null); setSchedule(null); setSent(null);
     setMatches([]); setPending([]); setThreads({}); setChatOrder([]); setActiveChat(null); setToast(null);
     setSupaLoading(false); setSupaError(null); setPendingEmail(''); setRealPlayers(null);
+    setMyCoords(null); setDistFilter('hepsi');
   };
 
   const playerPool = realPlayers || CM_PLAYERS;
-  const filtered = React.useMemo(
-    () => (filter === 'hepsi' ? playerPool : playerPool.filter((p) => p.level === filter)),
-    [filter, playerPool]
-  );
+
+  const playerPoolWithDist = React.useMemo(() => {
+    if (!myCoords) return playerPool;
+    return playerPool.map(p => {
+      if (p.lat == null || p.lng == null) return p;
+      return { ...p, dist: +_haversineKm(myCoords.lat, myCoords.lng, p.lat, p.lng).toFixed(1) };
+    });
+  }, [playerPool, myCoords]);
+
+  const filtered = React.useMemo(() => {
+    return playerPoolWithDist.filter(p => {
+      if (filter !== 'hepsi' && p.level !== filter) return false;
+      if (distFilter !== 'hepsi') {
+        if (!myCoords || p.dist == null || p.dist > distFilter) return false;
+      }
+      return true;
+    });
+  }, [filter, distFilter, playerPoolWithDist, myCoords]);
 
   // create a chat thread seeded locally (gerçek mesajlar Supabase'den gelir)
   const addThread = (player) => {
@@ -2822,10 +2900,23 @@ function App() {
 
       {stage === 'app' && (
         <div className="cm-app">
-          <TopBar live={filtered.length} />
+          <TopBar live={filtered.length} distFilter={distFilter} />
           {tab === 'discover' && (
             <div className="cm-discover">
               <LevelFilter value={filter} onChange={setFilter} />
+              <DistFilter value={distFilter} hasCoords={!!myCoords} onChange={(v) => {
+                if (v !== 'hepsi' && !myCoords && navigator.geolocation) {
+                  navigator.geolocation.getCurrentPosition(
+                    async ({ coords }) => {
+                      const { latitude: lat, longitude: lng } = coords;
+                      setMyCoords({ lat, lng });
+                      try { await cmSaveLocation(myId, lat, lng); } catch(e) {}
+                    },
+                    () => {}
+                  );
+                }
+                setDistFilter(v);
+              }} />
               <SwipeDeck players={filtered} onResolve={resolve} />
             </div>
           )}

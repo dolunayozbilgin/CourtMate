@@ -60,6 +60,8 @@ function profileToMe(profile, email) {
     bio:        profile.bio    || '',
     hue:        _hue((profile.name || '') + (profile.style || '')),
     avatar_url: profile.avatar_url || null,
+    lat:        profile.lat  || null,
+    lng:        profile.lng  || null,
   };
 }
 
@@ -246,7 +248,9 @@ function profileToPlayer(p, sentToIds, receivedFromIds) {
     age:      p.age,
     level:    p.level,
     utr:      _utrFromProfile(p),
-    dist:     p.location ? 'Yakın' : '—',
+    lat:      p.lat  || null,
+    lng:      p.lng  || null,
+    dist:     null,
     avail:    p.avail   || 'Esnek',
     court:    p.court   || 'Belirtilmemiş',
     mutual:   (receivedFromIds || new Set()).has(p.id) && !(sentToIds || new Set()).has(p.id),
@@ -269,6 +273,10 @@ async function cmGetDiscoverPlayers(userId) {
   const sentTo       = new Set((myMatches || []).filter(m => m.sender_id   === userId).map(m => m.receiver_id));
   const receivedFrom = new Set((myMatches || []).filter(m => m.receiver_id === userId).map(m => m.sender_id));
   return (profiles || []).map(p => profileToPlayer(p, sentTo, receivedFrom));
+}
+
+async function cmSaveLocation(userId, lat, lng) {
+  await cmUpdateProfile(userId, { lat, lng });
 }
 
 async function cmUploadAvatar(userId, file) {
@@ -299,7 +307,7 @@ Object.assign(window, {
   cm_db, profileToMe, profileToPlayer,
   cmSignUp, cmSignIn, cmSignOut, cmGetSession, cmOnAuthStateChange,
   cmSyncProfile, cmGetProfile, cmUpdateProfile, cmGetDiscoverPlayers,
-  cmUploadAvatar, cmDeleteAccount,
+  cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
 });

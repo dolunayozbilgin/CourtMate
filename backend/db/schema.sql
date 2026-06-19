@@ -28,6 +28,10 @@ CREATE TABLE profiles (
   -- Konum (PostGIS point: longitude, latitude)
   location    GEOGRAPHY(POINT, 4326),
 
+  -- GPS koordinatları (client-side haversine hesabı için)
+  lat         FLOAT,
+  lng         FLOAT,
+
   -- Profil fotoğrafı (Supabase Storage bucket'ına yüklenen dosyanın yolu)
   avatar_url  TEXT,
 
@@ -306,6 +310,14 @@ BEGIN
   DELETE FROM auth.users WHERE id = auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ──────────────────────────────────────────────────────────
+-- 10. GPS KOLONLARI (var olan DB'ye uygulamak için)
+-- Yeni kurulumda profiles tablosu zaten lat/lng içeriyor.
+-- Mevcut bir DB'ye eklemek için:
+-- ──────────────────────────────────────────────────────────
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS lat FLOAT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS lng FLOAT;
 
 -- ──────────────────────────────────────────────────────────
 -- KURULUM TAMAMLANDI
