@@ -310,6 +310,36 @@ async function cmUploadAvatar(userId, file) {
   return publicUrl;
 }
 
+// ── Maç Planlaması ───────────────────────────────────────
+
+async function cmSendSchedule(matchId, senderId, receiverId, { courtName, courtSurf, day, time }) {
+  const { data, error } = await cm_db
+    .from('scheduled_matches')
+    .insert({ match_id: matchId, sender_id: senderId, receiver_id: receiverId,
+              court_name: courtName, court_surf: courtSurf, day, scheduled_time: time })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function cmRespondSchedule(scheduleId, status) {
+  const { error } = await cm_db
+    .from('scheduled_matches')
+    .update({ status })
+    .eq('id', scheduleId);
+  if (error) throw error;
+}
+
+async function cmGetMySchedules(userId) {
+  const { data, error } = await cm_db
+    .from('scheduled_matches')
+    .select('*')
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 async function cmDeleteAccount(userId) {
   await cm_db.storage.from('avatars').remove([`${userId}/avatar.jpg`, `${userId}/avatar.png`, `${userId}/avatar.jpeg`, `${userId}/avatar.webp`]);
   const { error } = await cm_db.rpc('delete_own_account');
@@ -327,4 +357,5 @@ Object.assign(window, {
   cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules,
 });

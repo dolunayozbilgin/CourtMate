@@ -458,6 +458,19 @@
   .cm-bubble.is-them { align-self: flex-start; background: var(--card2); border: 1px solid var(--line); color: var(--text); border-bottom-left-radius: 5px; }
   .cm-bubble.is-me { align-self: flex-end; background: var(--accent); color: var(--accent-ink); font-weight: 500; border-bottom-right-radius: 5px; }
 
+  .cm-sched-card { padding: 12px 14px; min-width: 200px; }
+  .cm-sched-label { font-family: var(--mono); font-size: 9px; letter-spacing: .08em; opacity: .6; margin-bottom: 6px; }
+  .cm-sched-row { font-size: 13px; line-height: 1.5; }
+  .cm-sched-row b { font-weight: 600; }
+  .cm-sched-btns { display: flex; gap: 8px; margin-top: 10px; }
+  .cm-sched-accept { flex: 1; padding: 7px 0; border-radius: 8px; border: none; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer; }
+  .cm-sched-reject { flex: 1; padding: 7px 0; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; }
+  .cm-sched-done { margin-top: 8px; font-family: var(--mono); font-size: 10px; opacity: .55; }
+  .cm-match-hist-row { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .cm-match-hist-row:last-child { border-bottom: none; }
+  .cm-match-hist-court { font-size: 13px; font-weight: 600; }
+  .cm-match-hist-meta { font-size: 12px; color: var(--muted); }
+  .cm-match-hist-status { font-size: 11px; font-family: var(--mono); margin-top: 2px; }
   .cm-chat-input { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-top: 1px solid var(--line); flex-shrink: 0; }
   .cm-chat-input input { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px;
     color: var(--text); font-family: 'Archivo', sans-serif; font-size: 15px; outline: none; transition: .15s; }
@@ -876,6 +889,36 @@ async function cmDeleteAccount(userId) {
   }
 }
 
+// ── Maç Planlaması ───────────────────────────────────────
+
+async function cmSendSchedule(matchId, senderId, receiverId, { courtName, courtSurf, day, time }) {
+  const { data, error } = await cm_db
+    .from('scheduled_matches')
+    .insert({ match_id: matchId, sender_id: senderId, receiver_id: receiverId,
+              court_name: courtName, court_surf: courtSurf, day, scheduled_time: time })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function cmRespondSchedule(scheduleId, status) {
+  const { error } = await cm_db
+    .from('scheduled_matches')
+    .update({ status })
+    .eq('id', scheduleId);
+  if (error) throw error;
+}
+
+async function cmGetMySchedules(userId) {
+  const { data, error } = await cm_db
+    .from('scheduled_matches')
+    .select('*')
+    .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
 async function cmGetDiscoverPlayers(userId) {
   const [{ data: profiles, error: pe }, { data: myMatches }] = await Promise.all([
     cm_db.from('profiles').select('*').neq('id', userId),
@@ -897,6 +940,7 @@ Object.assign(window, {
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
   cmSubscribeAllMessages, cmSubscribeAllMatches,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules,
 });
 
 </script>
@@ -1966,12 +2010,19 @@ function SignupFlow({ initial, editing, onComplete, onCancel, onSwitchToLogin, l
 
 // ── Profile (reflects the registered account) ───────────
 function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
-  const { useState, useRef } = React;
+  const { useState, useRef, useEffect } = React;
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [schedules, setSchedules] = useState([]);
   const fileRef = useRef(null);
   const lvlColor = { baslangic: '#34d399', orta: '#f5c044', ileri: '#ff7058' }[me.level] || 'var(--accent)';
+
+  useEffect(() => {
+    if (me.id && me.id !== 'me') {
+      cmGetMySchedules(me.id).then(setSchedules).catch(() => {});
+    }
+  }, [me.id]);
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -2036,10 +2087,26 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
       <div className="cm-prof-block">
         <div className="cm-prof-block-label">DURUM</div>
         <div className="cm-prof-newrow">
-          <div className="cm-prof-newval">YENİ<i>oyuncu</i></div>
-          <p>Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.</p>
+          <div className="cm-prof-newval">{schedules.filter(s => s.status === 'accepted').length > 0 ? schedules.filter(s => s.status === 'accepted').length + '<i>maç</i>' : 'YENİ<i>oyuncu</i>'}</div>
+          <p>{schedules.filter(s => s.status === 'accepted').length > 0 ? 'Tamamlanan maç sayın aşağıda listeleniyor.' : 'Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.'}</p>
         </div>
       </div>
+
+      {schedules.length > 0 && (
+        <div className="cm-prof-block">
+          <div className="cm-prof-block-label">MAÇ GEÇMİŞİ</div>
+          {schedules.map(s => {
+            const statusMap = { accepted: '✓ Onaylandı', rejected: '✗ Reddedildi', pending: '⏳ Bekliyor' };
+            return (
+              <div key={s.id} className="cm-match-hist-row">
+                <div className="cm-match-hist-court">{s.court_name}</div>
+                <div className="cm-match-hist-meta">{s.day} · {s.scheduled_time} · {s.court_surf}</div>
+                <div className="cm-match-hist-status">{statusMap[s.status] || s.status}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {me.bio && (
         <div className="cm-prof-block">
@@ -2347,7 +2414,7 @@ function ChatList({ order, threads, players, onOpen }) {
             <Avatar p={p} size={48} />
             <div className="cm-mrow-main">
               <div className="cm-mrow-name">{p.name}</div>
-              <div className="cm-chat-prev">{last ? (last.from === 'me' ? 'Sen: ' : '') + last.text : 'Mesaj yok…'}</div>
+              <div className="cm-chat-prev">{last ? (last.from === 'me' ? 'Sen: ' : '') + (last.text.startsWith('__SCHEDULE__:') ? '🎾 Maç teklifi' : last.text) : 'Mesaj yok…'}</div>
             </div>
             {th.unread > 0 && <span className="cm-unread">{th.unread}</span>}
           </button>
@@ -2357,8 +2424,31 @@ function ChatList({ order, threads, players, onOpen }) {
   );
 }
 
+// ── Maç teklifi kartı (chat içinde) ─────────────────────
+function ScheduleCard({ data, isMe, onRespond }) {
+  const [done, setDone] = React.useState(false);
+  const respond = (status) => { setDone(true); onRespond(data.id, status); };
+  const statusText = { accepted: '✓ Kabul edildi', rejected: '✗ Reddedildi' }[data.status] || null;
+  return (
+    <div className="cm-sched-card">
+      <div className="cm-sched-label">MAÇ TEKLİFİ</div>
+      <div className="cm-sched-row"><b>{data.court}</b></div>
+      <div className="cm-sched-row">{data.surf} · {data.day} · {data.time}</div>
+      {!isMe && !done && !statusText && (
+        <div className="cm-sched-btns">
+          <button className="cm-sched-accept" onClick={() => respond('accepted')}>Kabul Et</button>
+          <button className="cm-sched-reject" onClick={() => respond('rejected')}>Reddet</button>
+        </div>
+      )}
+      {(isMe || done || statusText) && (
+        <div className="cm-sched-done">{statusText || (done ? '✓ Yanıtlandı' : 'Gönderildi')}</div>
+      )}
+    </div>
+  );
+}
+
 // ── Sohbet: single thread ────────────────────────────────
-function ChatThread({ player, thread, onBack, onSend, onSchedule, onBlock, onReport }) {
+function ChatThread({ player, thread, onBack, onSend, onSchedule, onRespond, onBlock, onReport }) {
   const { useState, useRef, useEffect } = React;
   const [text, setText] = useState('');
   const bodyRef = useRef(null);
@@ -2389,9 +2479,19 @@ function ChatThread({ player, thread, onBack, onSend, onSchedule, onBlock, onRep
       </div>
       <div className="cm-chat-body" ref={bodyRef}>
         <div className="cm-chat-day">EŞLEŞTİNİZ · {player.court}</div>
-        {messages.map((m, i) => (
-          <div key={i} className={cx('cm-bubble', m.from === 'me' ? 'is-me' : 'is-them')}>{m.text}</div>
-        ))}
+        {messages.map((m, i) => {
+          if (m.text.startsWith('__SCHEDULE__:')) {
+            let d; try { d = JSON.parse(m.text.slice(13)); } catch(e) { d = null; }
+            if (d) return (
+              <div key={i} className={cx('cm-bubble', m.from === 'me' ? 'is-me' : 'is-them')} style={{ padding: 0, background: 'none', border: 'none' }}>
+                <div style={{ background: m.from === 'me' ? 'var(--accent)' : 'var(--card2)', border: m.from !== 'me' ? '1px solid var(--line)' : 'none', borderRadius: 16, overflow: 'hidden' }}>
+                  <ScheduleCard data={d} isMe={m.from === 'me'} onRespond={onRespond} />
+                </div>
+              </div>
+            );
+          }
+          return <div key={i} className={cx('cm-bubble', m.from === 'me' ? 'is-me' : 'is-them')}>{m.text}</div>;
+        })}
       </div>
       <div className="cm-chat-input">
         <input value={text} onChange={(e) => setText(e.target.value)}
@@ -3037,6 +3137,17 @@ function App() {
     if (mid && myId) { try { cmMarkRead(mid, myId); } catch(e) {} }
   };
 
+  // maç teklifine yanıt ver
+  const respondSchedule = async (partnerId, scheduleId, status) => {
+    const mid = matchIdsRef.current[partnerId];
+    if (!mid || !myId) return;
+    try {
+      await cmRespondSchedule(scheduleId, status);
+      const txt = status === 'accepted' ? '✓ Maç teklifini kabul ettim!' : '✗ Maç teklifini reddettim.';
+      await cmSendMsg(mid, myId, txt);
+    } catch(e) { console.warn('Yanıt gönderilemedi:', e.message); }
+  };
+
   // gerçek mesaj gönder (otomatik cevap YOK)
   const sendMessage = async (id, text) => {
     const mid = matchIdsRef.current[id];
@@ -3112,6 +3223,7 @@ function App() {
               ? <ChatThread player={activePlayer} thread={threads[activeChat]}
                   onBack={() => setActiveChat(null)} onSend={sendMessage}
                   onSchedule={(p) => setSchedule(p)}
+                  onRespond={(schedId, status) => respondSchedule(activeChat, schedId, status)}
                   onBlock={blockPlayer} onReport={(p) => setReportTarget(p)} />
               : <ChatList order={chatOrder} threads={threads} players={playerPool} onOpen={openChat} />
           )}
@@ -3140,7 +3252,19 @@ function App() {
         onSubmit={(reason) => reportPlayer(reportTarget, reason)} />}
 
       {match && <MatchOverlay player={match} onSchedule={(p) => { setMatch(null); setSchedule(p); }} onKeep={() => setMatch(null)} />}
-      {schedule && <ScheduleSheet player={schedule} onClose={() => setSchedule(null)} onSend={(data) => { const p = schedule; setSchedule(null); setSent({ data, player: p }); }} />}
+      {schedule && <ScheduleSheet player={schedule} onClose={() => setSchedule(null)} onSend={async (data) => {
+        const p = schedule;
+        setSchedule(null);
+        const mid = matchIdsRef.current[p.id];
+        if (mid && myId) {
+          try {
+            const sched = await cmSendSchedule(mid, myId, p.id, { courtName: data.court.name, courtSurf: data.court.surf, day: data.day, time: data.time });
+            const schedText = '__SCHEDULE__:' + JSON.stringify({ id: sched.id, court: data.court.name, surf: data.court.surf, day: data.day, time: data.time });
+            await cmSendMsg(mid, myId, schedText);
+          } catch(e) { console.warn('Teklif kaydedilemedi:', e.message); }
+        }
+        setSent({ data, player: p });
+      }} />}
       {sent && <SentToast data={sent.data} player={sent.player} onDone={() => { setSent(null); setTab('discover'); }} />}
 
       <TweaksPanel>
