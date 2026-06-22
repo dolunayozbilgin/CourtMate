@@ -2087,7 +2087,7 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
       <div className="cm-prof-block">
         <div className="cm-prof-block-label">DURUM</div>
         <div className="cm-prof-newrow">
-          <div className="cm-prof-newval">{schedules.filter(s => s.status === 'accepted').length > 0 ? schedules.filter(s => s.status === 'accepted').length + '<i>maç</i>' : 'YENİ<i>oyuncu</i>'}</div>
+          <div className="cm-prof-newval">{schedules.filter(s => s.status === 'accepted').length > 0 ? <>{schedules.filter(s => s.status === 'accepted').length}<i>maç</i></> : <><span>YENİ</span><i>oyuncu</i></>}</div>
           <p>{schedules.filter(s => s.status === 'accepted').length > 0 ? 'Tamamlanan maç sayın aşağıda listeleniyor.' : 'Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.'}</p>
         </div>
       </div>
