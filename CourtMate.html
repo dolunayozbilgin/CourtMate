@@ -471,16 +471,14 @@
   .cm-match-hist-court { font-size: 13px; font-weight: 600; }
   .cm-match-hist-meta { font-size: 12px; color: var(--muted); }
   .cm-match-hist-status { font-size: 11px; font-family: var(--mono); margin-top: 2px; }
-  .cm-score-form { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
-  .cm-score-input { width: 100%; box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); font-family: 'Archivo', sans-serif; font-size: 14px; outline: none; }
-  .cm-score-btns { display: flex; gap: 8px; }
-  .cm-score-win { flex: 1; padding: 9px 0; border-radius: 10px; border: none; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer; }
-  .cm-score-lose { flex: 1; padding: 9px 0; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; }
-  .cm-score-result { font-size: 12px; font-family: var(--mono); margin-top: 4px; }
-  .cm-score-result.win { color: var(--accent); }
-  .cm-score-result.lose { color: var(--muted); }
-  .cm-mate-score { font-size: 42px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
-  .cm-mate-score i { font-size: 14px; font-weight: 400; font-style: italic; opacity: .6; margin-left: 4px; }
+  .cm-stars { display: flex; gap: 4px; margin-top: 8px; }
+  .cm-star-btn { background: none; border: none; cursor: pointer; font-size: 30px; padding: 2px 3px; color: var(--line); transition: color .1s; line-height: 1; }
+  .cm-star-btn.lit { color: #f5c044; }
+  .cm-star-btn:disabled { cursor: default; }
+  .cm-star-rated { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 6px; }
+  .cm-avg-stars { font-size: 20px; letter-spacing: 1px; }
+  .cm-avg-num { font-size: 42px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+  .cm-avg-num i { font-size: 14px; font-weight: 400; font-style: italic; opacity: .6; margin-left: 4px; }
   .cm-chat-input { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-top: 1px solid var(--line); flex-shrink: 0; }
   .cm-chat-input input { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px;
     color: var(--text); font-family: 'Archivo', sans-serif; font-size: 15px; outline: none; transition: .15s; }
@@ -596,10 +594,11 @@ function profileToMe(profile, email) {
     avail:      profile.avail  || '',
     bio:        profile.bio    || '',
     hue:        _hue((profile.name || '') + (profile.style || '')),
-    avatar_url: profile.avatar_url || null,
-    lat:        profile.lat  || null,
-    lng:        profile.lng  || null,
-    mateScore:  profile.mate_score != null ? profile.mate_score : 5.0,
+    avatar_url:   profile.avatar_url  || null,
+    lat:          profile.lat         || null,
+    lng:          profile.lng         || null,
+    avgRating:    profile.avg_rating  || 0,
+    ratingCount:  profile.rating_count || 0,
   };
 }
 
@@ -930,12 +929,11 @@ async function cmGetMySchedules(userId) {
   return data || [];
 }
 
-async function cmScoreMatch(scheduleId, winnerId, loserId, scoreText) {
-  const { error } = await cm_db.rpc('update_mate_scores', {
+async function cmRateMatch(scheduleId, raterId, stars) {
+  const { error } = await cm_db.rpc('submit_match_rating', {
     p_schedule_id: scheduleId,
-    p_winner_id:   winnerId,
-    p_loser_id:    loserId,
-    p_score_text:  scoreText,
+    p_rater_id:    raterId,
+    p_stars:       stars,
   });
   if (error) throw error;
 }
@@ -961,7 +959,7 @@ Object.assign(window, {
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
   cmSubscribeAllMessages, cmSubscribeAllMatches,
-  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmScoreMatch,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmRateMatch,
 });
 
 </script>
@@ -2030,16 +2028,28 @@ function SignupFlow({ initial, editing, onComplete, onCancel, onSwitchToLogin, l
 }
 
 // ── Profile (reflects the registered account) ───────────
-function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onScored }) {
+function StarPicker({ onPick, disabled }) {
+  const [sel, setSel] = React.useState(0);
+  const pick = (n) => { if (disabled || sel) return; setSel(n); onPick(n); };
+  return (
+    <div className="cm-stars">
+      {[1,2,3,4,5].map(n => (
+        <button key={n} className={`cm-star-btn${n <= sel ? ' lit' : ''}`}
+          onClick={() => pick(n)} disabled={disabled || !!sel}>★</button>
+      ))}
+    </div>
+  );
+}
+
+function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onRated }) {
   const { useState, useRef, useEffect } = React;
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [schedules, setSchedules] = useState([]);
-  const [scoringId, setScoringId] = useState(null);
-  const [scoreText, setScoreText] = useState('');
-  const [scoring, setScoring] = useState(false);
-  const [mateScore, setMateScore] = useState(me.mateScore);
+  const [rating, setRating] = useState(false);
+  const [avgRating, setAvgRating] = useState(me.avgRating);
+  const [ratingCount, setRatingCount] = useState(me.ratingCount);
   const fileRef = useRef(null);
   const lvlColor = { baslangic: '#34d399', orta: '#f5c044', ileri: '#ff7058' }[me.level] || 'var(--accent)';
 
@@ -2051,23 +2061,18 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onScored }
 
   useEffect(() => { loadSchedules(); }, [me.id]);
 
-  const submitScore = async (s, iWon) => {
-    if (scoring) return;
-    setScoring(true);
+  const submitRating = async (s, stars) => {
+    if (rating) return;
+    setRating(true);
     try {
-      const partnerId = s.sender_id === me.id ? s.receiver_id : s.sender_id;
-      const winnerId  = iWon ? me.id : partnerId;
-      const loserId   = iWon ? partnerId : me.id;
-      await cmScoreMatch(s.id, winnerId, loserId, scoreText || '—');
+      await cmRateMatch(s.id, me.id, stars);
       const profile = await cmGetProfile(me.id);
-      const newScore = profile?.mate_score ?? mateScore;
-      setMateScore(newScore);
-      onScored && onScored(newScore);
-      setScoringId(null);
-      setScoreText('');
+      setAvgRating(profile?.avg_rating || avgRating);
+      setRatingCount(profile?.rating_count || ratingCount);
+      onRated && onRated(profile?.avg_rating, profile?.rating_count);
       loadSchedules();
-    } catch(e) { console.warn('Skor hatası:', e.message); }
-    setScoring(false);
+    } catch(e) { console.warn('Puanlama hatası:', e.message); }
+    setRating(false);
   };
 
   const handleFile = async (e) => {
@@ -2133,15 +2138,16 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onScored }
       <div className="cm-prof-block">
         <div className="cm-prof-block-label">DURUM</div>
         <div className="cm-prof-newrow">
-          {schedules.some(s => s.winner_id) ? (
+          {avgRating > 0 ? (
             <>
-              <div className="cm-mate-score">{mateScore.toFixed(1)}<i>Mate Score</i></div>
-              <p>{schedules.filter(s => s.winner_id === me.id).length}G · {schedules.filter(s => s.winner_id && s.winner_id !== me.id).length}M</p>
+              <div className="cm-avg-num">{avgRating.toFixed(1)}<i>/ 5 puan</i></div>
+              <div className="cm-avg-stars">{'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}</div>
+              <p style={{ marginTop: 4 }}>{ratingCount} maç puanlaması</p>
             </>
           ) : (
             <>
               <div className="cm-prof-newval"><span>YENİ</span><i>oyuncu</i></div>
-              <p>Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.</p>
+              <p>Henüz puanlanmadın. Maç sonrası partnerin seni puanladığında burada görünecek.</p>
             </>
           )}
         </div>
@@ -2152,37 +2158,21 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onScored }
           <div className="cm-prof-block-label">MAÇ GEÇMİŞİ</div>
           {schedules.map(s => {
             const isAccepted = s.status === 'accepted';
-            const isScored   = !!s.winner_id;
-            const iWon       = s.winner_id === me.id;
-            const isOpening  = scoringId === s.id;
+            const myRating   = s.sender_id === me.id ? s.rating_by_sender : s.rating_by_receiver;
             return (
               <div key={s.id} className="cm-match-hist-row">
                 <div className="cm-match-hist-court">{s.court_name}</div>
                 <div className="cm-match-hist-meta">{s.day} · {s.scheduled_time} · {s.court_surf}</div>
-                {isScored ? (
+                {isAccepted && !myRating && (
                   <>
-                    <div className={`cm-score-result ${iWon ? 'win' : 'lose'}`}>{iWon ? '✓ Galibiyet' : '✗ Mağlubiyet'}{s.score_text && s.score_text !== '—' ? ` · ${s.score_text}` : ''}</div>
+                    <div className="cm-star-rated">Partneri puanla:</div>
+                    <StarPicker disabled={rating} onPick={(stars) => submitRating(s, stars)} />
                   </>
-                ) : isAccepted ? (
-                  <>
-                    {!isOpening && (
-                      <button className="cm-sched-accept" style={{ marginTop: 8, width: '100%' }}
-                        onClick={() => { setScoringId(s.id); setScoreText(''); }}>
-                        Skor Gir
-                      </button>
-                    )}
-                    {isOpening && (
-                      <div className="cm-score-form">
-                        <input className="cm-score-input" placeholder="6-3, 6-4" value={scoreText}
-                          onChange={e => setScoreText(e.target.value)} />
-                        <div className="cm-score-btns">
-                          <button className="cm-score-win" disabled={scoring} onClick={() => submitScore(s, true)}>Kazandım ✓</button>
-                          <button className="cm-score-lose" disabled={scoring} onClick={() => submitScore(s, false)}>Kaybettim ✗</button>
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
+                )}
+                {isAccepted && myRating && (
+                  <div className="cm-star-rated">{'★'.repeat(myRating)}{'☆'.repeat(5 - myRating)} verdin</div>
+                )}
+                {!isAccepted && (
                   <div className="cm-match-hist-status">{{ rejected: '✗ Reddedildi', pending: '⏳ Bekliyor' }[s.status] || s.status}</div>
                 )}
               </div>
@@ -3317,8 +3307,8 @@ function App() {
                 setMe(updated);
                 try { localStorage.setItem(ME_KEY, JSON.stringify(updated)); } catch(e) {}
               }}
-              onScored={(newScore) => {
-                const updated = { ...me, mateScore: newScore };
+              onRated={(avg, count) => {
+                const updated = { ...me, avgRating: avg || 0, ratingCount: count || 0 };
                 setMe(updated);
                 try { localStorage.setItem(ME_KEY, JSON.stringify(updated)); } catch(e) {}
               }}
