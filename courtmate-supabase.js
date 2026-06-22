@@ -340,6 +340,14 @@ async function cmGetMySchedules(userId) {
   return data || [];
 }
 
+async function cmSetMatchResult(scheduleId, winnerId) {
+  const { error } = await cm_db
+    .from('scheduled_matches')
+    .update({ winner_id: winnerId })
+    .eq('id', scheduleId);
+  if (error) throw error;
+}
+
 async function cmRateMatch(scheduleId, raterId, stars) {
   const { error } = await cm_db.rpc('submit_match_rating', {
     p_schedule_id: scheduleId,
@@ -366,5 +374,5 @@ Object.assign(window, {
   cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
-  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmRateMatch,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmRateMatch, cmSetMatchResult,
 });

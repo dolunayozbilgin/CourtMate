@@ -938,6 +938,14 @@ async function cmRateMatch(scheduleId, raterId, stars) {
   if (error) throw error;
 }
 
+async function cmSetMatchResult(scheduleId, winnerId) {
+  const { error } = await cm_db
+    .from('scheduled_matches')
+    .update({ winner_id: winnerId })
+    .eq('id', scheduleId);
+  if (error) throw error;
+}
+
 async function cmGetDiscoverPlayers(userId) {
   const [{ data: profiles, error: pe }, { data: myMatches }] = await Promise.all([
     cm_db.from('profiles').select('*').neq('id', userId),
@@ -959,7 +967,7 @@ Object.assign(window, {
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
   cmSubscribeAllMessages, cmSubscribeAllMatches,
-  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmRateMatch,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmRateMatch, cmSetMatchResult,
 });
 
 </script>
@@ -2075,6 +2083,15 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onRated })
     setRating(false);
   };
 
+  const submitResult = async (s, iWon) => {
+    const partnerId = s.sender_id === me.id ? s.receiver_id : s.sender_id;
+    const winnerId  = iWon ? me.id : partnerId;
+    try {
+      await cmSetMatchResult(s.id, winnerId);
+      loadSchedules();
+    } catch(e) { console.warn('Sonuç hatası:', e.message); }
+  };
+
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2138,18 +2155,32 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onRated })
       <div className="cm-prof-block">
         <div className="cm-prof-block-label">DURUM</div>
         <div className="cm-prof-newrow">
-          {avgRating > 0 ? (
-            <>
-              <div className="cm-avg-num">{avgRating.toFixed(1)}<i>/ 5 puan</i></div>
-              <div className="cm-avg-stars">{'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}</div>
-              <p style={{ marginTop: 4 }}>{ratingCount} maç puanlaması</p>
-            </>
-          ) : (
-            <>
-              <div className="cm-prof-newval"><span>YENİ</span><i>oyuncu</i></div>
-              <p>Henüz puanlanmadın. Maç sonrası partnerin seni puanladığında burada görünecek.</p>
-            </>
-          )}
+          {(() => {
+            const wins   = schedules.filter(s => s.winner_id === me.id).length;
+            const losses = schedules.filter(s => s.winner_id && s.winner_id !== me.id).length;
+            const hasRecord = wins + losses > 0;
+            return (
+              <>
+                {avgRating > 0 ? (
+                  <>
+                    <div className="cm-avg-num">{avgRating.toFixed(1)}<i>/ 5 puan</i></div>
+                    <div className="cm-avg-stars">{'★'.repeat(Math.round(avgRating))}{'☆'.repeat(5 - Math.round(avgRating))}</div>
+                    <p style={{ marginTop: 4 }}>{ratingCount} puanlama{hasRecord ? ` · ${wins}G ${losses}M` : ''}</p>
+                  </>
+                ) : hasRecord ? (
+                  <>
+                    <div className="cm-prof-newval"><span>{wins}G</span><i>{losses}M</i></div>
+                    <p>Henüz kimse tarafından puanlanmadın.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="cm-prof-newval"><span>YENİ</span><i>oyuncu</i></div>
+                    <p>Henüz maç oynamadın. İlk maçından sonra istatistiklerin burada birikecek.</p>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
 
@@ -2159,18 +2190,34 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onRated })
           {schedules.map(s => {
             const isAccepted = s.status === 'accepted';
             const myRating   = s.sender_id === me.id ? s.rating_by_sender : s.rating_by_receiver;
+            const iWon       = s.winner_id === me.id;
+            const isLoss     = s.winner_id && s.winner_id !== me.id;
             return (
               <div key={s.id} className="cm-match-hist-row">
                 <div className="cm-match-hist-court">{s.court_name}</div>
                 <div className="cm-match-hist-meta">{s.day} · {s.scheduled_time} · {s.court_surf}</div>
-                {isAccepted && !myRating && (
+                {isAccepted && (
                   <>
-                    <div className="cm-star-rated">Partneri puanla:</div>
-                    <StarPicker disabled={rating} onPick={(stars) => submitRating(s, stars)} />
+                    {s.winner_id ? (
+                      <div className="cm-match-hist-status" style={{ color: iWon ? 'var(--accent)' : 'var(--muted)' }}>
+                        {iWon ? '✓ Galibiyet' : '✗ Mağlubiyet'}
+                      </div>
+                    ) : (
+                      <div className="cm-score-btns" style={{ marginTop: 8 }}>
+                        <button className="cm-sched-accept" style={{ flex: 1 }} onClick={() => submitResult(s, true)}>Kazandım</button>
+                        <button className="cm-sched-reject" style={{ flex: 1 }} onClick={() => submitResult(s, false)}>Kaybettim</button>
+                      </div>
+                    )}
+                    {!myRating && (
+                      <>
+                        <div className="cm-star-rated" style={{ marginTop: 8 }}>Partneri puanla:</div>
+                        <StarPicker disabled={rating} onPick={(stars) => submitRating(s, stars)} />
+                      </>
+                    )}
+                    {myRating && (
+                      <div className="cm-star-rated">{'★'.repeat(myRating)}{'☆'.repeat(5 - myRating)} verdin</div>
+                    )}
                   </>
-                )}
-                {isAccepted && myRating && (
-                  <div className="cm-star-rated">{'★'.repeat(myRating)}{'☆'.repeat(5 - myRating)} verdin</div>
                 )}
                 {!isAccepted && (
                   <div className="cm-match-hist-status">{{ rejected: '✗ Reddedildi', pending: '⏳ Bekliyor' }[s.status] || s.status}</div>
