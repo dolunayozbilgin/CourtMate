@@ -471,6 +471,16 @@
   .cm-match-hist-court { font-size: 13px; font-weight: 600; }
   .cm-match-hist-meta { font-size: 12px; color: var(--muted); }
   .cm-match-hist-status { font-size: 11px; font-family: var(--mono); margin-top: 2px; }
+  .cm-score-form { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; }
+  .cm-score-input { width: 100%; box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--text); font-family: 'Archivo', sans-serif; font-size: 14px; outline: none; }
+  .cm-score-btns { display: flex; gap: 8px; }
+  .cm-score-win { flex: 1; padding: 9px 0; border-radius: 10px; border: none; background: var(--accent); color: var(--accent-ink); font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer; }
+  .cm-score-lose { flex: 1; padding: 9px 0; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px; cursor: pointer; }
+  .cm-score-result { font-size: 12px; font-family: var(--mono); margin-top: 4px; }
+  .cm-score-result.win { color: var(--accent); }
+  .cm-score-result.lose { color: var(--muted); }
+  .cm-mate-score { font-size: 42px; font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+  .cm-mate-score i { font-size: 14px; font-weight: 400; font-style: italic; opacity: .6; margin-left: 4px; }
   .cm-chat-input { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-top: 1px solid var(--line); flex-shrink: 0; }
   .cm-chat-input input { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px;
     color: var(--text); font-family: 'Archivo', sans-serif; font-size: 15px; outline: none; transition: .15s; }
@@ -589,6 +599,7 @@ function profileToMe(profile, email) {
     avatar_url: profile.avatar_url || null,
     lat:        profile.lat  || null,
     lng:        profile.lng  || null,
+    mateScore:  profile.mate_score != null ? profile.mate_score : 5.0,
   };
 }
 
@@ -919,6 +930,16 @@ async function cmGetMySchedules(userId) {
   return data || [];
 }
 
+async function cmScoreMatch(scheduleId, winnerId, loserId, scoreText) {
+  const { error } = await cm_db.rpc('update_mate_scores', {
+    p_schedule_id: scheduleId,
+    p_winner_id:   winnerId,
+    p_loser_id:    loserId,
+    p_score_text:  scoreText,
+  });
+  if (error) throw error;
+}
+
 async function cmGetDiscoverPlayers(userId) {
   const [{ data: profiles, error: pe }, { data: myMatches }] = await Promise.all([
     cm_db.from('profiles').select('*').neq('id', userId),
@@ -940,7 +961,7 @@ Object.assign(window, {
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
   cmSubscribeAllMessages, cmSubscribeAllMatches,
-  cmSendSchedule, cmRespondSchedule, cmGetMySchedules,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmScoreMatch,
 });
 
 </script>
@@ -2009,20 +2030,45 @@ function SignupFlow({ initial, editing, onComplete, onCancel, onSwitchToLogin, l
 }
 
 // ── Profile (reflects the registered account) ───────────
-function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
+function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount, onScored }) {
   const { useState, useRef, useEffect } = React;
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [schedules, setSchedules] = useState([]);
+  const [scoringId, setScoringId] = useState(null);
+  const [scoreText, setScoreText] = useState('');
+  const [scoring, setScoring] = useState(false);
+  const [mateScore, setMateScore] = useState(me.mateScore);
   const fileRef = useRef(null);
   const lvlColor = { baslangic: '#34d399', orta: '#f5c044', ileri: '#ff7058' }[me.level] || 'var(--accent)';
 
-  useEffect(() => {
+  const loadSchedules = () => {
     if (me.id && me.id !== 'me') {
       cmGetMySchedules(me.id).then(setSchedules).catch(() => {});
     }
-  }, [me.id]);
+  };
+
+  useEffect(() => { loadSchedules(); }, [me.id]);
+
+  const submitScore = async (s, iWon) => {
+    if (scoring) return;
+    setScoring(true);
+    try {
+      const partnerId = s.sender_id === me.id ? s.receiver_id : s.sender_id;
+      const winnerId  = iWon ? me.id : partnerId;
+      const loserId   = iWon ? partnerId : me.id;
+      await cmScoreMatch(s.id, winnerId, loserId, scoreText || '—');
+      const profile = await cmGetProfile(me.id);
+      const newScore = profile?.mate_score ?? mateScore;
+      setMateScore(newScore);
+      onScored && onScored(newScore);
+      setScoringId(null);
+      setScoreText('');
+      loadSchedules();
+    } catch(e) { console.warn('Skor hatası:', e.message); }
+    setScoring(false);
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -2087,8 +2133,17 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
       <div className="cm-prof-block">
         <div className="cm-prof-block-label">DURUM</div>
         <div className="cm-prof-newrow">
-          <div className="cm-prof-newval">{schedules.filter(s => s.status === 'accepted').length > 0 ? <>{schedules.filter(s => s.status === 'accepted').length}<i>maç</i></> : <><span>YENİ</span><i>oyuncu</i></>}</div>
-          <p>{schedules.filter(s => s.status === 'accepted').length > 0 ? 'Tamamlanan maç sayın aşağıda listeleniyor.' : 'Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.'}</p>
+          {schedules.some(s => s.winner_id) ? (
+            <>
+              <div className="cm-mate-score">{mateScore.toFixed(1)}<i>Mate Score</i></div>
+              <p>{schedules.filter(s => s.winner_id === me.id).length}G · {schedules.filter(s => s.winner_id && s.winner_id !== me.id).length}M</p>
+            </>
+          ) : (
+            <>
+              <div className="cm-prof-newval"><span>YENİ</span><i>oyuncu</i></div>
+              <p>Henüz maç oynamadın. İlk eşleşmenden sonra Mate Score ve istatistiklerin burada birikecek.</p>
+            </>
+          )}
         </div>
       </div>
 
@@ -2096,12 +2151,40 @@ function ProfileScreen({ me, onEdit, onAvatarChange, onDeleteAccount }) {
         <div className="cm-prof-block">
           <div className="cm-prof-block-label">MAÇ GEÇMİŞİ</div>
           {schedules.map(s => {
-            const statusMap = { accepted: '✓ Onaylandı', rejected: '✗ Reddedildi', pending: '⏳ Bekliyor' };
+            const isAccepted = s.status === 'accepted';
+            const isScored   = !!s.winner_id;
+            const iWon       = s.winner_id === me.id;
+            const isOpening  = scoringId === s.id;
             return (
               <div key={s.id} className="cm-match-hist-row">
                 <div className="cm-match-hist-court">{s.court_name}</div>
                 <div className="cm-match-hist-meta">{s.day} · {s.scheduled_time} · {s.court_surf}</div>
-                <div className="cm-match-hist-status">{statusMap[s.status] || s.status}</div>
+                {isScored ? (
+                  <>
+                    <div className={`cm-score-result ${iWon ? 'win' : 'lose'}`}>{iWon ? '✓ Galibiyet' : '✗ Mağlubiyet'}{s.score_text && s.score_text !== '—' ? ` · ${s.score_text}` : ''}</div>
+                  </>
+                ) : isAccepted ? (
+                  <>
+                    {!isOpening && (
+                      <button className="cm-sched-accept" style={{ marginTop: 8, width: '100%' }}
+                        onClick={() => { setScoringId(s.id); setScoreText(''); }}>
+                        Skor Gir
+                      </button>
+                    )}
+                    {isOpening && (
+                      <div className="cm-score-form">
+                        <input className="cm-score-input" placeholder="6-3, 6-4" value={scoreText}
+                          onChange={e => setScoreText(e.target.value)} />
+                        <div className="cm-score-btns">
+                          <button className="cm-score-win" disabled={scoring} onClick={() => submitScore(s, true)}>Kazandım ✓</button>
+                          <button className="cm-score-lose" disabled={scoring} onClick={() => submitScore(s, false)}>Kaybettim ✗</button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="cm-match-hist-status">{{ rejected: '✗ Reddedildi', pending: '⏳ Bekliyor' }[s.status] || s.status}</div>
+                )}
               </div>
             );
           })}
@@ -3231,6 +3314,11 @@ function App() {
             <ProfileScreen me={me} onEdit={() => { setEditing(true); setStage('signup'); }}
               onAvatarChange={(url) => {
                 const updated = { ...me, avatar_url: url };
+                setMe(updated);
+                try { localStorage.setItem(ME_KEY, JSON.stringify(updated)); } catch(e) {}
+              }}
+              onScored={(newScore) => {
+                const updated = { ...me, mateScore: newScore };
                 setMe(updated);
                 try { localStorage.setItem(ME_KEY, JSON.stringify(updated)); } catch(e) {}
               }}

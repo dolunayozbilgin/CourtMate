@@ -340,6 +340,16 @@ async function cmGetMySchedules(userId) {
   return data || [];
 }
 
+async function cmScoreMatch(scheduleId, winnerId, loserId, scoreText) {
+  const { error } = await cm_db.rpc('update_mate_scores', {
+    p_schedule_id: scheduleId,
+    p_winner_id:   winnerId,
+    p_loser_id:    loserId,
+    p_score_text:  scoreText,
+  });
+  if (error) throw error;
+}
+
 async function cmDeleteAccount(userId) {
   await cm_db.storage.from('avatars').remove([`${userId}/avatar.jpg`, `${userId}/avatar.png`, `${userId}/avatar.jpeg`, `${userId}/avatar.webp`]);
   const { error } = await cm_db.rpc('delete_own_account');
@@ -357,5 +367,5 @@ Object.assign(window, {
   cmSaveLocation, cmUploadAvatar, cmDeleteAccount,
   cmSendMatchRequest, cmGetMatches, cmAcceptMatch,
   cmGetMessages, cmSendMsg, cmMarkRead, cmSubscribeMessages, cmSubscribeMatches,
-  cmSendSchedule, cmRespondSchedule, cmGetMySchedules,
+  cmSendSchedule, cmRespondSchedule, cmGetMySchedules, cmScoreMatch,
 });
