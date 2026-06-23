@@ -127,6 +127,14 @@
     letter-spacing: .03em; border-radius: 11px; cursor: pointer; transition: .18s;
   }
   .cm-filter-btn.is-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+  .cm-filter-toggle { display: flex; align-items: center; gap: 5px; padding: 9px 13px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-family: var(--mono); font-size: 11px; border-radius: 11px; cursor: pointer; transition: .18s; white-space: nowrap; flex-shrink: 0; }
+  .cm-filter-toggle.is-active { border-color: var(--accent); color: var(--accent); }
+  .cm-filter-badge { background: var(--accent); color: var(--accent-ink); font-size: 9px; font-weight: 700; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .cm-adv-panel { padding: 4px 20px 10px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--line); }
+  .cm-adv-row { display: flex; flex-direction: column; gap: 6px; }
+  .cm-adv-label { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; color: var(--muted); }
+  .cm-adv-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .cm-adv-chips .cm-filter-btn { flex: 0 0 auto; padding: 7px 12px; }
 
   /* ════════════════ DECK + CARD ════════════════ */
   .cm-deck-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 4px 18px 0; }
@@ -2682,7 +2690,11 @@ const DIST_FILTERS = [
 ];
 
 // ── Top bar ──────────────────────────────────────────────
-function TopBar({ live, distFilter }) {
+function TopBar({ live, distFilter, availFilter }) {
+  const tags = [
+    distFilter && distFilter !== 'hepsi' ? `${distFilter}KM` : null,
+    availFilter && availFilter !== 'hepsi' ? availFilter.split('ları')[0].split('leri')[0].split('ları')[0].toUpperCase() : null,
+  ].filter(Boolean);
   return (
     <div className="cm-topbar">
       <div className="cm-brand">
@@ -2692,36 +2704,56 @@ function TopBar({ live, distFilter }) {
       <div className="cm-topbar-right">
         <span className="cm-live">
           <i className="cm-live-dot" />
-          {live} OYUNCU{distFilter && distFilter !== 'hepsi' ? ` · ${distFilter}KM` : ''}
+          {live} OYUNCU{tags.length > 0 ? ` · ${tags.join(' · ')}` : ''}
         </span>
       </div>
     </div>
   );
 }
 
-// ── Level filter (segmented) ─────────────────────────────
-function LevelFilter({ value, onChange }) {
+// ── Level filter + advanced filter toggle ────────────────
+function LevelFilter({ value, onChange, advActive, onAdvToggle }) {
   return (
     <div className="cm-filter">
       {LEVEL_FILTERS.map((f) => (
         <button key={f.id} className={cx('cm-filter-btn', value === f.id && 'is-active')}
           onClick={() => onChange(f.id)}>{f.label}</button>
       ))}
+      <button className={cx('cm-filter-toggle', advActive > 0 && 'is-active')} onClick={onAdvToggle}>
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        {advActive > 0 ? <span className="cm-filter-badge">{advActive}</span> : 'Filtrele'}
+      </button>
     </div>
   );
 }
 
-// ── Distance filter ──────────────────────────────────────
-function DistFilter({ value, onChange, hasCoords }) {
+// ── Advanced filter panel (mesafe + müsaitlik) ───────────
+function AdvancedFilterPanel({ distFilter, onDistChange, availFilter, onAvailChange, hasCoords }) {
   return (
-    <div className="cm-filter" style={{ paddingTop: 0 }}>
-      {DIST_FILTERS.map((f) => (
-        <button key={f.id} className={cx('cm-filter-btn', value === f.id && 'is-active')}
-          onClick={() => onChange(f.id)}>{f.label}</button>
-      ))}
-      {!hasCoords && value !== 'hepsi' && (
-        <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center', fontFamily: 'var(--mono)', letterSpacing: '.06em' }}>KONUM İZNİ VER</span>
-      )}
+    <div className="cm-adv-panel">
+      <div className="cm-adv-row">
+        <div className="cm-adv-label">MESAFE</div>
+        <div className="cm-adv-chips">
+          {DIST_FILTERS.map(f => (
+            <button key={f.id} className={cx('cm-filter-btn', distFilter === f.id && 'is-active')}
+              onClick={() => onDistChange(f.id)}>{f.label}</button>
+          ))}
+          {!hasCoords && distFilter !== 'hepsi' && (
+            <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center', fontFamily: 'var(--mono)' }}>KONUM İZNİ VER</span>
+          )}
+        </div>
+      </div>
+      <div className="cm-adv-row">
+        <div className="cm-adv-label">MÜSAİTLİK</div>
+        <div className="cm-adv-chips">
+          <button className={cx('cm-filter-btn', availFilter === 'hepsi' && 'is-active')}
+            onClick={() => onAvailChange('hepsi')}>Hepsi</button>
+          {AVAIL_OPTS.map(a => (
+            <button key={a} className={cx('cm-filter-btn', availFilter === a && 'is-active')}
+              onClick={() => onAvailChange(a)}>{a}</button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2922,6 +2954,8 @@ function App() {
   const [tab, setTab] = useState('discover');
   const [filter, setFilter] = useState(() => { const m = loadMe(); return m ? m.level : 'hepsi'; });
   const [distFilter, setDistFilter] = useState('hepsi');
+  const [availFilter, setAvailFilter] = useState('hepsi');
+  const [filterOpen, setFilterOpen] = useState(false);
   const [myCoords, setMyCoords] = useState(null);
   const [blockedIds, setBlockedIds] = useState(new Set());
   const [reportTarget, setReportTarget] = useState(null);
@@ -3203,9 +3237,10 @@ function App() {
       if (distFilter !== 'hepsi') {
         if (!myCoords || p.dist == null || p.dist > distFilter) return false;
       }
+      if (availFilter !== 'hepsi' && p.avail !== availFilter) return false;
       return true;
     });
-  }, [filter, distFilter, playerPoolWithDist, myCoords]);
+  }, [filter, distFilter, availFilter, playerPoolWithDist, myCoords]);
 
   // create a chat thread seeded locally (gerçek mesajlar Supabase'den gelir)
   const addThread = (player) => {
@@ -3313,23 +3348,32 @@ function App() {
 
       {stage === 'app' && (
         <div className="cm-app">
-          <TopBar live={filtered.length} distFilter={distFilter} />
+          <TopBar live={filtered.length} distFilter={distFilter} availFilter={availFilter} />
           {tab === 'discover' && (
             <div className="cm-discover">
-              <LevelFilter value={filter} onChange={setFilter} />
-              <DistFilter value={distFilter} hasCoords={!!myCoords} onChange={(v) => {
-                if (v !== 'hepsi' && !myCoords && navigator.geolocation) {
-                  navigator.geolocation.getCurrentPosition(
-                    async ({ coords }) => {
-                      const { latitude: lat, longitude: lng } = coords;
-                      setMyCoords({ lat, lng });
-                      try { await cmSaveLocation(myId, lat, lng); } catch(e) {}
-                    },
-                    () => {}
-                  );
-                }
-                setDistFilter(v);
-              }} />
+              <LevelFilter value={filter} onChange={setFilter}
+                advActive={(distFilter !== 'hepsi' ? 1 : 0) + (availFilter !== 'hepsi' ? 1 : 0)}
+                onAdvToggle={() => setFilterOpen(o => !o)} />
+              {filterOpen && (
+                <AdvancedFilterPanel
+                  distFilter={distFilter}
+                  onDistChange={(v) => {
+                    if (v !== 'hepsi' && !myCoords && navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        async ({ coords }) => {
+                          const { latitude: lat, longitude: lng } = coords;
+                          setMyCoords({ lat, lng });
+                          try { await cmSaveLocation(myId, lat, lng); } catch(e) {}
+                        }, () => {}
+                      );
+                    }
+                    setDistFilter(v);
+                  }}
+                  availFilter={availFilter}
+                  onAvailChange={setAvailFilter}
+                  hasCoords={!!myCoords}
+                />
+              )}
               <SwipeDeck players={filtered} onResolve={resolve} />
             </div>
           )}
