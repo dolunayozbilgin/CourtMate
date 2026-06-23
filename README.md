@@ -1,6 +1,6 @@
 # CourtMate
 
-Tenis oyuncularını buluşturan eşleşme uygulaması. Tinder mantığıyla çalışır: sev, eşleş, kort randevusu ver, maçını kaydet.
+Tenis oyuncularını buluşturan eşleşme uygulaması. Tinder mantığıyla çalışır: swipe'la, eşleş, kort randevusu ver, maçını kaydet.
 
 ---
 
